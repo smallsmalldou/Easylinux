@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================
-#  Easy 管理面板  v1.0
+#  Easy 管理面板  v1.1
 #  纯本地 bash · 零下载 · 零第三方
 #  启动:       e
 #  源码审查:   cat /usr/local/bin/e
@@ -48,7 +48,7 @@ cover() {
 ▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀   ▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀
 COVER
   printf '\033[1;36m'
-  echo "                  E a s y 管 理 面 板  v1.0"
+  echo "                  E a s y 管 理 面 板  v1.1"
   printf '\033[0m'
   echo ""
 }
@@ -143,12 +143,34 @@ fmt_size() {
 }
 
 sys_clean() {
+  while true; do
+    clear
+    echo -e "${CYAN}────────── 清理垃圾 ──────────${NC}"
+    echo ""
+    echo "  ──────────────────────────────────────"
+    echo -e "   ${GREEN}1${NC}) 清理磁盘垃圾"
+    echo -e "   ${GREEN}2${NC}) 清理运行内存"
+    echo -e "   ${GREEN}0${NC}) 返回主菜单"
+    echo "  ──────────────────────────────────────"
+    echo ""
+    read -p "  请选择: " opt
+    case "$opt" in
+      1) clean_disk ;;
+      2) clean_memory ;;
+      0) return ;;
+      *) ;;
+    esac
+  done
+}
+
+clean_disk() {
   clear
-  echo -e "${CYAN}────────── 清理垃圾 ──────────${NC}"
+  echo -e "${CYAN}────────── 清理磁盘垃圾 ──────────${NC}"
   echo -e "${YELLOW}  将清理: apt 孤儿包 / 下载缓存 / 旧日志 / 过期临时文件${NC}"
   echo -e "${YELLOW}  不影响: 配置、数据、已装软件${NC}"
-  if ! confirm "确认开始清理垃圾?"; then
+  if ! confirm "确认开始清理磁盘垃圾?"; then
     echo "  已取消"
+    read -p "  按回车继续..."
     return
   fi
   before=$(df -B1 / | awk 'NR==2 {print $3}')
@@ -176,6 +198,29 @@ sys_clean() {
   echo -e "  本次释放:   ${GREEN}$(fmt_size "$freed")${NC}"
   echo -e "  清理后已用: ${GREEN}$(fmt_size "$after")${NC}"
   echo ""
+  read -p "  按回车继续..."
+}
+
+clean_memory() {
+  clear
+  echo -e "${CYAN}────────── 清理运行内存 ──────────${NC}"
+  echo -e "${YELLOW}  将释放: 页缓存 / 目录项 / inode 缓存${NC}"
+  echo -e "${YELLOW}  注意: 清理后系统会重新读磁盘，短暂变慢${NC}"
+  echo ""
+  if confirm "确认清理运行内存?"; then
+    before=$(awk '/^MemTotal/ {total=$2} /^MemAvailable/ {avail=$2} END {printf "%d", (total-avail)/1024}' /proc/meminfo)
+    sync
+    echo 3 > /proc/sys/vm/drop_caches
+    after=$(awk '/^MemTotal/ {total=$2} /^MemAvailable/ {avail=$2} END {printf "%d", (total-avail)/1024}' /proc/meminfo)
+    freed=$(awk -v b="$before" -v a="$after" 'BEGIN {print b - a}')
+    [ -z "$freed" ] && freed=0
+    [ "$freed" -lt 0 ] 2>/dev/null && freed=0
+    echo -e "  清理后已用: ${GREEN}${after}MB${NC}"
+    echo -e "  本次释放:   ${GREEN}${freed}MB${NC}"
+  else
+    echo "  已取消"
+  fi
+  read -p "  按回车继续..."
 }
 
 # ---------- 软件源管理 ----------
@@ -927,6 +972,29 @@ sys_reboot() {
   fi
 }
 
+sys_update() {
+  clear
+  echo -e "${CYAN}────────── 更新脚本 ──────────${NC}"
+  echo -e "${YELLOW}  将从 GitHub 下载最新版脚本覆盖当前版本${NC}"
+  echo -e "${YELLOW}  仓库地址: https://github.com/smallsmalldou/Easylinux${NC}"
+  echo -e "${YELLOW}  您的笔记文件不会被删除${NC}"
+  echo ""
+  if confirm "确认更新脚本?"; then
+    echo -e "${YELLOW}  正在下载...${NC}"
+    if curl -sL https://raw.githubusercontent.com/smallsmalldou/Easylinux/main/e -o /usr/local/bin/e && chmod +x /usr/local/bin/e; then
+      echo -e "${GREEN}  更新完成，即将重启脚本...${NC}"
+      sleep 1
+      exec /usr/local/bin/e
+    else
+      echo -e "${RED}  更新失败，请检查网络或 GitHub 地址${NC}"
+      read -p "  按回车继续..."
+    fi
+  else
+    echo "  已取消"
+    read -p "  按回车继续..."
+  fi
+}
+
 sys_uninstall() {
   self_path=$(readlink -f "$0")
   clear
@@ -962,7 +1030,8 @@ sys_tools() {
     echo -e "   ${GREEN}8${NC}) 设置启动快捷键"
     echo -e "   ${GREEN}9${NC}) 定时重启"
     echo -e "  ${GREEN}10${NC}) 重启服务器"
-    echo -e "  ${GREEN}11${NC}) 卸载脚本"
+    echo -e "  ${GREEN}11${NC}) 更新脚本"
+    echo -e "  ${GREEN}12${NC}) 卸载脚本"
     echo -e "   ${GREEN}0${NC}) 返回主菜单"
     echo "  ──────────────────────────────────────"
     echo ""
@@ -978,7 +1047,8 @@ sys_tools() {
       8) sys_hotkey ;;
       9) sys_schedule_reboot ;;
       10) sys_reboot ;;
-      11) sys_uninstall ;;
+      11) sys_update ;;
+      12) sys_uninstall ;;
       0) return ;;
       *) ;;
     esac
@@ -1807,7 +1877,7 @@ while true; do
   case "$choice" in
     1) sys_status; read -p "  按回车返回菜单..." ;;
     2) sys_logs ;;
-    3) sys_clean; read -p "  按回车返回菜单..." ;;
+    3) sys_clean ;;
     4) sys_tools ;;
     5) sys_ports ;;
     6) sys_ufw ;;
