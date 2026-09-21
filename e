@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================
-#  Easy 管理面板  v1.1
+#  Easy 管理面板  v1.2
 #  纯本地 bash · 零下载 · 零第三方
 #  启动:       e
 #  源码审查:   cat /usr/local/bin/e
@@ -29,6 +29,9 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
+# 脚本路径跟踪 (改快捷键后更新)
+SCRIPT_PATH=$(readlink -f "$0")
+
 # 初始主机名 (首次运行时自动记录，用于"恢复默认")
 ORIG_HOSTNAME=""
 
@@ -48,7 +51,7 @@ cover() {
 ▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀   ▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀
 COVER
   printf '\033[1;36m'
-  echo "                  E a s y 管 理 面 板  v1.1"
+  echo "                  E a s y 管 理 面 板  v1.2"
   printf '\033[0m'
   echo ""
 }
@@ -67,11 +70,12 @@ menu() {
   echo -e "   ${GREEN}7${NC}) 文件管理"
   echo -e "   ${GREEN}8${NC}) 软件管理"
   echo -e "   ${GREEN}9${NC}) BBR 加速"
-  echo -e "  ${GREEN}10${NC}) 记事本"
-  echo -e "  ${GREEN}11${NC}) 退出"
+  echo -e "  ${GREEN}10${NC}) SOCKS5"
+  echo -e "  ${GREEN}11${NC}) 记事本"
+  echo -e "   ${GREEN}0${NC}) 退出"
   echo "  ──────────────────────────────────────"
   echo ""
-  read -p "  请输入选项 [1-10]: " choice
+  read -p "  请输入选项: " choice
 }
 
 # ---------- 1. 系统状态 ----------
@@ -844,6 +848,27 @@ sys_passwd() {
   done
 }
 
+sys_hotkey_inline() {
+  self_path=$(readlink -f "$0")
+  read -p "  输入新快捷键 (如 e、m，仅限字母数字): " new
+  if echo "$new" | grep -qE '^[a-zA-Z0-9]{1,16}$'; then
+    newpath="/usr/local/bin/$new"
+    if [ -e "$newpath" ] && [ "$newpath" != "$self_path" ]; then
+      echo -e "${RED}  $newpath 已存在，请换个名字${NC}"
+    elif [ "$newpath" = "$self_path" ]; then
+      echo -e "${YELLOW}  快捷键未变化${NC}"
+    else
+      mv "$self_path" "$newpath" && {
+        SCRIPT_PATH="$newpath"
+        echo -e "${GREEN}  快捷键已改为: $new (下次输入 $new 打开)${NC}"
+      } || echo -e "${RED}  修改失败 (权限不足?)${NC}"
+    fi
+  else
+    echo -e "${RED}  无效输入 (仅限字母数字，16字符内)${NC}"
+  fi
+  read -p "  按回车继续..."
+}
+
 sys_hotkey() {
   self_path=$(readlink -f "$0")
   cur_name=$(basename "$self_path")
@@ -973,12 +998,6 @@ sys_reboot() {
 }
 
 sys_update() {
-  clear
-  echo -e "${CYAN}────────── 更新脚本 ──────────${NC}"
-  echo -e "${YELLOW}  将从 GitHub 下载最新版脚本覆盖当前版本${NC}"
-  echo -e "${YELLOW}  仓库地址: https://github.com/smallsmalldou/Easylinux${NC}"
-  echo -e "${YELLOW}  您的笔记文件不会被删除${NC}"
-  echo ""
   if confirm "确认更新脚本?"; then
     echo -e "${YELLOW}  正在下载...${NC}"
     if curl -sL https://raw.githubusercontent.com/smallsmalldou/Easylinux/main/e -o /usr/local/bin/e && chmod +x /usr/local/bin/e; then
@@ -995,14 +1014,39 @@ sys_update() {
   fi
 }
 
+sys_script_mgmt() {
+  while true; do
+    self_path="$SCRIPT_PATH"
+    cur_name=$(basename "$self_path")
+    clear
+    echo -e "${CYAN}────────── Easy 脚本管理 ──────────${NC}"
+    echo ""
+    echo -e "  当前启动快捷键: ${GREEN}${cur_name}${NC}"
+    echo -e "${YELLOW}  更新: 将从 GitHub 下载最新版脚本覆盖当前版本${NC}"
+    echo -e "${YELLOW}  仓库: https://github.com/smallsmalldou/Easylinux${NC}"
+    echo -e "${YELLOW}  卸载: 将删除脚本 ${self_path}${NC}"
+    echo -e "${YELLOW}  注意: 卸载会同时删除您的笔记文件${NC}"
+    echo ""
+    echo "  ──────────────────────────────────────"
+    echo -e "   ${GREEN}1${NC}) 设置脚本快捷键"
+    echo -e "   ${GREEN}2${NC}) 更新脚本"
+    echo -e "   ${GREEN}3${NC}) 卸载脚本"
+    echo -e "   ${GREEN}0${NC}) 返回系统工具"
+    echo "  ──────────────────────────────────────"
+    echo ""
+    read -p "  请选择: " opt
+    case "$opt" in
+      1) sys_hotkey_inline ;;
+      2) sys_update ;;
+      3) sys_uninstall ;;
+      0) return ;;
+      *) ;;
+    esac
+  done
+}
+
 sys_uninstall() {
-  self_path=$(readlink -f "$0")
-  clear
-  echo -e "${CYAN}────────── 卸载脚本 ──────────${NC}"
-  echo -e "  将删除脚本: ${self_path}"
-  if [ -f "$NOTES_FILE" ]; then
-    echo -e "  将删除笔记: ${NOTES_FILE}"
-  fi
+  self_path="$SCRIPT_PATH"
   if confirm "确认卸载脚本?"; then
     rm -f "$self_path"
     rm -f "$NOTES_FILE"
@@ -1027,11 +1071,9 @@ sys_tools() {
     echo -e "   ${GREEN}5${NC}) 设置语言"
     echo -e "   ${GREEN}6${NC}) 设置主机名"
     echo -e "   ${GREEN}7${NC}) 设置登录密码"
-    echo -e "   ${GREEN}8${NC}) 设置启动快捷键"
-    echo -e "   ${GREEN}9${NC}) 定时重启"
-    echo -e "  ${GREEN}10${NC}) 重启服务器"
-    echo -e "  ${GREEN}11${NC}) 更新脚本"
-    echo -e "  ${GREEN}12${NC}) 卸载脚本"
+    echo -e "   ${GREEN}8${NC}) 定时重启"
+    echo -e "   ${GREEN}9${NC}) 重启服务器"
+    echo -e "  ${GREEN}10${NC}) Easy 脚本管理"
     echo -e "   ${GREEN}0${NC}) 返回主菜单"
     echo "  ──────────────────────────────────────"
     echo ""
@@ -1044,11 +1086,9 @@ sys_tools() {
       5) sys_locale ;;
       6) sys_hostname ;;
       7) sys_passwd ;;
-      8) sys_hotkey ;;
-      9) sys_schedule_reboot ;;
-      10) sys_reboot ;;
-      11) sys_update ;;
-      12) sys_uninstall ;;
+      8) sys_schedule_reboot ;;
+      9) sys_reboot ;;
+      10) sys_script_mgmt ;;
       0) return ;;
       *) ;;
     esac
@@ -1372,6 +1412,133 @@ sys_ufw() {
   done
 }
 
+# ---------- 10. SOCKS5 代理 ----------
+sys_proxy() {
+  local env_file="/tmp/proxy.sh"
+  while true; do
+    clear
+    echo -e "${CYAN}────────── SOCKS5 ──────────${NC}"
+    echo ""
+    # 显示当前状态
+    unset ALL_PROXY all_proxy http_proxy https_proxy HTTP_PROXY HTTPS_PROXY
+    if [ -f "$env_file" ]; then
+      source "$env_file"
+      if [ -n "$ALL_PROXY" ]; then
+        echo -e "  当前状态: ${GREEN}已启用 (临时，重启后失效)${NC}"
+        echo -e "  代理类型: ${ALL_PROXY%%://*}"
+        echo -e "  代理地址: ${ALL_PROXY#*://}"
+        # 测试连接
+        echo -e "  正在检测代理连接...${NC}"
+        local_ip=$(curl -s --connect-timeout 5 https://myip.ipip.net 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+')
+        if [ -n "$local_ip" ]; then
+          echo -e "  出口 IP: ${GREEN}${local_ip}${NC}"
+        else
+          echo -e "  出口 IP: ${RED}无法连接${NC}"
+        fi
+      else
+        echo -e "  当前状态: ${YELLOW}未启用${NC}"
+      fi
+    else
+      echo -e "  当前状态: ${YELLOW}未启用${NC}"
+    fi
+    echo ""
+    echo "  ──────────────────────────────────────"
+    echo -e "   ${GREEN}1${NC}) SOCKS5 代理"
+    echo -e "   ${GREEN}2${NC}) HTTP 代理"
+    echo -e "   ${GREEN}3${NC}) 取消代理"
+    echo -e "   ${GREEN}0${NC}) 返回主菜单"
+    echo "  ──────────────────────────────────────"
+    echo ""
+    read -p "  请选择: " opt
+    case "$opt" in
+      1)
+        read -p "  输入代理 IP 或域名: " proxy_ip
+        read -p "  输入代理端口 (1-65535，如 1080): " proxy_port
+        # 校验端口
+        if ! echo "$proxy_port" | grep -qE '^[0-9]+$' || [ "$proxy_port" -lt 1 ] || [ "$proxy_port" -gt 65535 ]; then
+          echo -e "${RED}  端口无效 (必须是 1-65535 的数字)${NC}"
+          read -p "  按回车继续..."
+        # 校验 IP/域名 (简单格式校验，允许域名)
+        elif ! echo "$proxy_ip" | grep -qE '^[a-zA-Z0-9.-]+$'; then
+          echo -e "${RED}  IP/域名格式无效${NC}"
+          read -p "  按回车继续..."
+        else
+          proxy_url="socks5://${proxy_ip}:${proxy_port}"
+          echo -e "${YELLOW}  正在测试代理连接...${NC}"
+          curl -x "$proxy_url" -s --connect-timeout 5 https://www.baidu.com >/dev/null 2>&1
+          curl_ret=$?
+          if [ "$curl_ret" -eq 0 ]; then
+            cat > "$env_file" << EOF
+export http_proxy="$proxy_url"
+export https_proxy="$proxy_url"
+export all_proxy="$proxy_url"
+export HTTP_PROXY="$proxy_url"
+export HTTPS_PROXY="$proxy_url"
+export ALL_PROXY="$proxy_url"
+EOF
+            echo -e "${GREEN}  代理连接成功，已保存${NC}"
+            echo -e "${GREEN}  SOCKS5 代理已设置: $proxy_url${NC}"
+            echo -e "${YELLOW}  临时生效，重启后自动失效${NC}"
+            echo -e "${YELLOW}  当前终端执行: source $env_file${NC}"
+          else
+            echo -e "${RED}  代理连接失败 (错误码: $curl_ret)，未保存${NC}"
+            echo -e "${RED}  请检查 IP、端口是否正确，代理是否已启动${NC}"
+          fi
+          read -p "  按回车继续..."
+        fi
+        ;;
+      2)
+        read -p "  输入代理 IP 或域名: " proxy_ip
+        read -p "  输入代理端口 (1-65535，如 7890): " proxy_port
+        # 校验端口
+        if ! echo "$proxy_port" | grep -qE '^[0-9]+$' || [ "$proxy_port" -lt 1 ] || [ "$proxy_port" -gt 65535 ]; then
+          echo -e "${RED}  端口无效 (必须是 1-65535 的数字)${NC}"
+          read -p "  按回车继续..."
+        # 校验 IP/域名
+        elif ! echo "$proxy_ip" | grep -qE '^[a-zA-Z0-9.-]+$'; then
+          echo -e "${RED}  IP/域名格式无效${NC}"
+          read -p "  按回车继续..."
+        else
+          proxy_url="http://${proxy_ip}:${proxy_port}"
+          echo -e "${YELLOW}  正在测试代理连接...${NC}"
+          curl -x "$proxy_url" -s --connect-timeout 5 https://www.baidu.com >/dev/null 2>&1
+          curl_ret=$?
+          if [ "$curl_ret" -eq 0 ]; then
+            cat > "$env_file" << EOF
+export http_proxy="$proxy_url"
+export https_proxy="$proxy_url"
+export all_proxy="$proxy_url"
+export HTTP_PROXY="$proxy_url"
+export HTTPS_PROXY="$proxy_url"
+export ALL_PROXY="$proxy_url"
+EOF
+            echo -e "${GREEN}  代理连接成功，已保存${NC}"
+            echo -e "${GREEN}  HTTP 代理已设置: $proxy_url${NC}"
+            echo -e "${YELLOW}  临时生效，重启后自动失效${NC}"
+            echo -e "${YELLOW}  当前终端执行: source $env_file${NC}"
+          else
+            echo -e "${RED}  代理连接失败 (错误码: $curl_ret)，未保存${NC}"
+            echo -e "${RED}  请检查 IP、端口是否正确，代理是否已启动${NC}"
+          fi
+          read -p "  按回车继续..."
+        fi
+        ;;
+      3)
+        if confirm "确认取消代理?"; then
+          rm -f "$env_file"
+          unset ALL_PROXY all_proxy http_proxy https_proxy HTTP_PROXY HTTPS_PROXY
+          echo -e "${GREEN}  代理已取消${NC}"
+        else
+          echo "  已取消"
+        fi
+        read -p "  按回车继续..."
+        ;;
+      0) return ;;
+      *) ;;
+    esac
+  done
+}
+
 # ---------- 8. 记事本 ----------
 # 记事本文件跟着脚本所在目录走，放哪都能跑
 NOTES_FILE="$(dirname "$(readlink -f "$0")")/notes.txt"
@@ -1388,7 +1555,11 @@ sys_notes() {
       echo "  已取消"
       return
     fi
-    touch "$NOTES_FILE"
+    cat > "$NOTES_FILE" << 'AD'
+低价国际大带宽VPS ↓ ↓ ↓复制整段浏览器访问
+https://akile.ai/shop/server?type=traffic&areaId=3&nodeId=1&planId=811&aff_code=fcce7cc7-f708-489a-8d35-4a5c8fb015bb
+（输入3再输入0删掉烦人的小广告
+AD
   fi
   while true; do
     clear
@@ -1884,8 +2055,9 @@ while true; do
     7) sys_files ;;
     8) sys_packages ;;
     9) sys_bbr ;;
-    10) sys_notes ;;
-    11) echo "  再见"; exit 0 ;;
+    10) sys_proxy ;;
+    11) sys_notes ;;
+    0) echo "  再见"; exit 0 ;;
     *) ;;
   esac
 done
