@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================
-#  Easy 管理面板  v1.2
+#  Easy 管理面板  v1.3
 #  纯本地 bash · 零下载 · 零第三方
 #  启动:       e
 #  源码审查:   cat /usr/local/bin/e
@@ -51,7 +51,7 @@ cover() {
 ▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀   ▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀
 COVER
   printf '\033[1;36m'
-  echo "                  E a s y 管 理 面 板  v1.2"
+  echo "                  E a s y 管 理 面 板  v1.3"
   printf '\033[0m'
   echo ""
 }
@@ -60,20 +60,20 @@ COVER
 menu() {
   cover
   echo ""
-  echo "  ──────────────────────────────────────"
-  echo -e "   ${GREEN}1${NC}) 系统状态"
-  echo -e "   ${GREEN}2${NC}) 系统日志"
-  echo -e "   ${GREEN}3${NC}) 清理垃圾"
-  echo -e "   ${GREEN}4${NC}) 系统工具"
-  echo -e "   ${GREEN}5${NC}) 端口状态"
-  echo -e "   ${GREEN}6${NC}) 防火墙管理"
-  echo -e "   ${GREEN}7${NC}) 文件管理"
-  echo -e "   ${GREEN}8${NC}) 软件管理"
-  echo -e "   ${GREEN}9${NC}) BBR 加速"
-  echo -e "  ${GREEN}10${NC}) SOCKS5"
-  echo -e "  ${GREEN}11${NC}) 记事本"
-  echo -e "   ${GREEN}0${NC}) 退出"
-  echo "  ──────────────────────────────────────"
+  echo "  ──────────────────────────────────────────────"
+  echo -e "   ${GREEN}1${NC}) 系统状态       ${GREEN}11${NC}) SOCKS5"
+  echo -e "   ${GREEN}2${NC}) 网络状态       ${GREEN}12${NC}) Ping 测试"
+  echo -e "   ${GREEN}3${NC}) 系统日志       ${GREEN}13${NC}) 记事本"
+  echo -e "   ${GREEN}4${NC}) 清理垃圾"
+  echo -e "   ${GREEN}5${NC}) 系统工具"
+  echo -e "   ${GREEN}6${NC}) 端口状态"
+  echo -e "   ${GREEN}7${NC}) 防火墙管理"
+  echo -e "   ${GREEN}8${NC}) 文件管理"
+  echo -e "   ${GREEN}9${NC}) 软件管理"
+  echo -e "  ${GREEN}10${NC}) BBR 加速"
+  echo ""
+  echo -e "               ${GREEN}0${NC}) 退出"
+  echo "  ──────────────────────────────────────────────"
   echo ""
   read -p "  请输入选项: " choice
 }
@@ -157,7 +157,7 @@ sys_clean() {
     echo -e "   ${GREEN}0${NC}) 返回主菜单"
     echo "  ──────────────────────────────────────"
     echo ""
-    read -p "  请选择: " opt
+    read -p "  请输入选项: " opt
     case "$opt" in
       1) clean_disk ;;
       2) clean_memory ;;
@@ -216,7 +216,7 @@ clean_memory() {
     sync
     echo 3 > /proc/sys/vm/drop_caches
     after=$(awk '/^MemTotal/ {total=$2} /^MemAvailable/ {avail=$2} END {printf "%d", (total-avail)/1024}' /proc/meminfo)
-    freed=$(awk -v b="$before" -v a="$after" 'BEGIN {print b - a}')
+    freed=$(awk -v b="$before" -v a="$after" 'BEGIN {printf "%d", b - a}')
     [ -z "$freed" ] && freed=0
     [ "$freed" -lt 0 ] 2>/dev/null && freed=0
     echo -e "  清理后已用: ${GREEN}${after}MB${NC}"
@@ -236,9 +236,9 @@ set_apt_source() {
     echo -e "${RED}  无法检测系统代号，已取消${NC}"
     return 1
   fi
-  # 备份现有源
-  [ -f /etc/apt/sources.list ] && cp /etc/apt/sources.list /etc/apt/sources.list.bak.$(date +%Y%m%d%H%M%S)
-  [ -f /etc/apt/sources.list.d/debian.sources ] && cp /etc/apt/sources.list.d/debian.sources /etc/apt/sources.list.d/debian.sources.bak.$(date +%Y%m%d%H%M%S)
+  # 备份现有源 (到 /tmp，重启后自动清理，不残留)
+  [ -f /etc/apt/sources.list ] && cp /etc/apt/sources.list /tmp/apt-sources.list.bak.$(date +%Y%m%d%H%M%S) 2>/dev/null
+  [ -f /etc/apt/sources.list.d/debian.sources ] && cp /etc/apt/sources.list.d/debian.sources /tmp/apt-debian.sources.bak.$(date +%Y%m%d%H%M%S) 2>/dev/null
   cat > /etc/apt/sources.list <<EOF
 deb ${base}/debian ${codename} main contrib non-free non-free-firmware
 deb ${base}/debian-security ${codename}-security main contrib non-free non-free-firmware
@@ -314,7 +314,7 @@ sys_apt_sources() {
         fi
         read -p "  按回车继续..."
         ;;
-      3)
+      4)
         if confirm "确认切换为 清华大学源?"; then
           if set_apt_source "https://mirrors.tuna.tsinghua.edu.cn"; then
             echo -e "${GREEN}  已切换为 清华大学源 (mirrors.tuna.tsinghua.edu.cn)${NC}"
@@ -561,7 +561,7 @@ sys_ssh_port() {
     echo -e "   ${GREEN}0${NC}) 返回"
     echo "  ──────────────────────────────────────"
     echo ""
-    read -p "  请选择: " opt
+    read -p "  请输入选项: " opt
     case "$opt" in
       1)
         read -p "  输入新端口 (1-65535): " newport
@@ -625,9 +625,9 @@ sys_ssh_port() {
             echo -e "${GREEN}  已自动放行 ${newport}/tcp${NC}"
           fi
         fi
-        # 修改 sshd_config (先备份)
-        local bakfile="/etc/ssh/sshd_config.bak.$(date +%Y%m%d%H%M%S)"
-        cp /etc/ssh/sshd_config "$bakfile"
+        # 修改 sshd_config (备份到 /tmp，用完即删，不残留)
+        local bakfile="/tmp/sshd_config.bak.$SECONDS"
+        cp /etc/ssh/sshd_config "$bakfile" 2>/dev/null
         # 删除所有 Port 行，再添加新的
         sed -i '/^#*Port /d' /etc/ssh/sshd_config
         echo "Port $newport" >> /etc/ssh/sshd_config
@@ -639,16 +639,17 @@ sys_ssh_port() {
             echo -e "${GREEN}  SSH 端口已修改为 $newport${NC}"
           else
             echo -e "${RED}  警告: sshd 重启后新端口未监听，正在回滚...${NC}"
-            cp "$bakfile" /etc/ssh/sshd_config
+            cp "$bakfile" /etc/ssh/sshd_config 2>/dev/null
             systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null
             echo -e "${YELLOW}  已回滚到原配置，端口未修改${NC}"
           fi
         else
           echo -e "${RED}  警告: sshd 重启失败，正在回滚...${NC}"
-          cp "$bakfile" /etc/ssh/sshd_config
+          cp "$bakfile" /etc/ssh/sshd_config 2>/dev/null
           systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null
           echo -e "${YELLOW}  已回滚到原配置，端口未修改${NC}"
         fi
+        rm -f "$bakfile" 2>/dev/null
         read -p "  按回车继续..."
         ;;
       0) return ;;
@@ -666,19 +667,19 @@ sys_timezone() {
     echo -e "  当前时区: ${GREEN}${cur:-未知}${NC}"
     echo ""
     echo "  ──────────────────────────────────────"
-    echo "   1) 中国北京  (Asia/Shanghai)"
-    echo "   2) 中国香港  (Asia/Hong_Kong)"
-    echo "   3) 中国台湾  (Asia/Taipei)"
-    echo "   4) 日本      (Asia/Tokyo)"
-    echo "   5) 韩国      (Asia/Seoul)"
-    echo "   6) 新加坡    (Asia/Singapore)"
-    echo "   7) 美国东部  (America/New_York)"
-    echo "   8) 美国西部  (America/Los_Angeles)"
-    echo "   9) 英国      (Europe/London)"
-    echo "  10) 德国      (Europe/Berlin)"
-    echo "  11) 俄罗斯    (Europe/Moscow)"
-    echo "  12) 澳大利亚  (Australia/Sydney)"
-    echo "   0) 返回系统工具"
+    echo -e "   ${GREEN}1${NC}) 中国北京  (Asia/Shanghai)"
+    echo -e "   ${GREEN}2${NC}) 中国香港  (Asia/Hong_Kong)"
+    echo -e "   ${GREEN}3${NC}) 中国台湾  (Asia/Taipei)"
+    echo -e "   ${GREEN}4${NC}) 日本      (Asia/Tokyo)"
+    echo -e "   ${GREEN}5${NC}) 韩国      (Asia/Seoul)"
+    echo -e "   ${GREEN}6${NC}) 新加坡    (Asia/Singapore)"
+    echo -e "   ${GREEN}7${NC}) 美国东部  (America/New_York)"
+    echo -e "   ${GREEN}8${NC}) 美国西部  (America/Los_Angeles)"
+    echo -e "   ${GREEN}9${NC}) 英国      (Europe/London)"
+    echo -e "  ${GREEN}10${NC}) 德国      (Europe/Berlin)"
+    echo -e "  ${GREEN}11${NC}) 俄罗斯    (Europe/Moscow)"
+    echo -e "  ${GREEN}12${NC}) 澳大利亚  (Australia/Sydney)"
+    echo -e "   ${GREEN}0${NC}) 返回系统工具"
     echo "  ──────────────────────────────────────"
     echo ""
     read -p "  请输入选项: " opt
@@ -715,17 +716,17 @@ sys_locale() {
     echo -e "  当前语言: ${GREEN}${cur:-en_US.UTF-8}${NC}"
     echo ""
     echo "  ──────────────────────────────────────"
-    echo "   1) 简体中文  (zh_CN.UTF-8)"
-    echo "   2) 繁体中文  (zh_TW.UTF-8)"
-    echo "   3) 英语(美)  (en_US.UTF-8)"
-    echo "   4) 英语(英)  (en_GB.UTF-8)"
-    echo "   5) 日语      (ja_JP.UTF-8)"
-    echo "   6) 韩语      (ko_KR.UTF-8)"
-    echo "   7) 德语      (de_DE.UTF-8)"
-    echo "   8) 法语      (fr_FR.UTF-8)"
-    echo "   9) 俄语      (ru_RU.UTF-8)"
-    echo "  10) 西班牙语  (es_ES.UTF-8)"
-    echo "   0) 返回系统工具"
+    echo -e "   ${GREEN}1${NC}) 简体中文  (zh_CN.UTF-8)"
+    echo -e "   ${GREEN}2${NC}) 繁体中文  (zh_TW.UTF-8)"
+    echo -e "   ${GREEN}3${NC}) 英语(美)  (en_US.UTF-8)"
+    echo -e "   ${GREEN}4${NC}) 英语(英)  (en_GB.UTF-8)"
+    echo -e "   ${GREEN}5${NC}) 日语      (ja_JP.UTF-8)"
+    echo -e "   ${GREEN}6${NC}) 韩语      (ko_KR.UTF-8)"
+    echo -e "   ${GREEN}7${NC}) 德语      (de_DE.UTF-8)"
+    echo -e "   ${GREEN}8${NC}) 法语      (fr_FR.UTF-8)"
+    echo -e "   ${GREEN}9${NC}) 俄语      (ru_RU.UTF-8)"
+    echo -e "  ${GREEN}10${NC}) 西班牙语  (es_ES.UTF-8)"
+    echo -e "   ${GREEN}0${NC}) 返回系统工具"
     echo "  ──────────────────────────────────────"
     echo ""
     read -p "  请输入选项: " opt
@@ -869,54 +870,13 @@ sys_hotkey_inline() {
   read -p "  按回车继续..."
 }
 
-sys_hotkey() {
-  self_path=$(readlink -f "$0")
-  cur_name=$(basename "$self_path")
-  while true; do
-    clear
-    echo -e "${CYAN}────────── 设置启动快捷键 ──────────${NC}"
-    echo -e "  当前快捷键: ${GREEN}${cur_name}${NC} (输入 ${cur_name} 打开菜单)"
-    echo ""
-    echo "  ──────────────────────────────────────"
-    echo -e "   ${GREEN}1${NC}) 设置快捷键"
-    echo -e "   ${GREEN}0${NC}) 返回系统工具"
-    echo "  ──────────────────────────────────────"
-    echo ""
-    read -p "  请输入选项: " opt
-    case "$opt" in
-      1)
-        read -p "  输入新快捷键 (如 s、m，仅限字母数字): " new
-        if echo "$new" | grep -qE '^[a-zA-Z0-9]{1,16}$'; then
-          newpath="/usr/local/bin/$new"
-          if [ -e "$newpath" ] && [ "$newpath" != "$self_path" ]; then
-            echo -e "${RED}  $newpath 已存在，请换个名字${NC}"
-          elif [ "$newpath" = "$self_path" ]; then
-            echo -e "${YELLOW}  快捷键未变化${NC}"
-          else
-            mv "$self_path" "$newpath" && {
-              cur_name="$new"
-              self_path="$newpath"
-              echo -e "${GREEN}  快捷键已改为: $new (下次输入 $new 打开)${NC}"
-            } || echo -e "${RED}  修改失败 (权限不足?)${NC}"
-          fi
-        else
-          echo -e "${RED}  无效输入 (仅限字母数字，16字符内)${NC}"
-        fi
-        read -p "  按回车继续..."
-        ;;
-      0) return ;;
-      *) ;;
-    esac
-  done
-}
-
 sys_schedule_reboot() {
   while true; do
     clear
     echo -e "${CYAN}────────── 定时重启 ──────────${NC}"
     echo ""
     if [ -f /etc/systemd/system/reboot.timer ]; then
-      interval=$(grep -oP 'OnUnitActiveSec=\K\S+' /etc/systemd/system/reboot.timer 2>/dev/null)
+      interval=$(grep -oE 'OnUnitActiveSec=[^ ]+' /etc/systemd/system/reboot.timer 2>/dev/null | cut -d= -f2)
       hours=${interval%h}
       active=$(systemctl is-active reboot.timer 2>/dev/null)
       echo -e "  当前状态: ${GREEN}已设置${NC}"
@@ -1000,10 +960,10 @@ sys_reboot() {
 sys_update() {
   if confirm "确认更新脚本?"; then
     echo -e "${YELLOW}  正在下载...${NC}"
-    if curl -sL https://raw.githubusercontent.com/smallsmalldou/Easylinux/main/e -o /usr/local/bin/e && chmod +x /usr/local/bin/e; then
+    if curl -sL https://raw.githubusercontent.com/smallsmalldou/Easylinux/main/e -o "$SCRIPT_PATH" && chmod +x "$SCRIPT_PATH"; then
       echo -e "${GREEN}  更新完成，即将重启脚本...${NC}"
       sleep 1
-      exec /usr/local/bin/e
+      exec "$SCRIPT_PATH"
     else
       echo -e "${RED}  更新失败，请检查网络或 GitHub 地址${NC}"
       read -p "  按回车继续..."
@@ -1034,7 +994,7 @@ sys_script_mgmt() {
     echo -e "   ${GREEN}0${NC}) 返回系统工具"
     echo "  ──────────────────────────────────────"
     echo ""
-    read -p "  请选择: " opt
+    read -p "  请输入选项: " opt
     case "$opt" in
       1) sys_hotkey_inline ;;
       2) sys_update ;;
@@ -1296,9 +1256,6 @@ sys_bbr() {
 
 # ---------- 6. 防火墙管理 ----------
 sys_ufw() {
-  clear
-  echo -e "${CYAN}────────── 防火墙管理 ──────────${NC}"
-
   if ! command -v ufw >/dev/null 2>&1; then
     if confirm "未检测到 ufw，是否现在安装?"; then
       echo -e "  正在安装 ufw..."
@@ -1319,9 +1276,16 @@ sys_ufw() {
 
   while true; do
     clear
+    echo -e "${CYAN}────────── 防火墙管理 ──────────${NC}"
+    echo ""
     echo -e "${YELLOW}-- 当前防火墙状态 --${NC}"
     if ufw status | grep -q "Status: active"; then
-      echo -e "   ${GREEN}已开启 (active)${NC}"
+      # 禁 ping 需修改 before.rules 的 echo-request ACCEPT→DROP（ufw 默认先放行 ICMP，普通 deny 规则不生效）
+      if grep -q -- '--icmp-type echo-request -j DROP' /etc/ufw/before.rules 2>/dev/null; then
+        echo -e "   ${GREEN}已开启 (active)${NC}    Ping: ${YELLOW}禁止${NC}"
+      else
+        echo -e "   ${GREEN}已开启 (active)${NC}    Ping: ${GREEN}允许${NC}"
+      fi
     else
       echo -e "   ${RED}未开启 (inactive)${NC}"
     fi
@@ -1339,7 +1303,8 @@ sys_ufw() {
     echo -e "   ${GREEN}2${NC}) 取消放行端口"
     echo -e "   ${GREEN}3${NC}) 开启防火墙"
     echo -e "   ${GREEN}4${NC}) 关闭防火墙"
-    echo -e "   ${GREEN}5${NC}) 重置默认策略"
+    echo -e "   ${GREEN}5${NC}) 开关 Ping"
+    echo -e "   ${GREEN}6${NC}) 重置默认策略"
     echo -e "   ${GREEN}0${NC}) 返回主菜单"
     echo "  ──────────────────────────────────────"
     echo ""
@@ -1393,11 +1358,61 @@ sys_ufw() {
         read -p "  按回车继续..."
         ;;
       5)
+        # 防火墙关闭时：提示需先开启才能控制 ping
+        if ! ufw status | grep -q "Status: active"; then
+          echo -e "${YELLOW}  防火墙目前关闭，允许 ping 或禁止 ping 需要开启防火墙${NC}"
+          if confirm "是否先开启防火墙再继续?"; then
+            echo -e "${YELLOW}  开启防火墙中...${NC}"
+            ufw --force enable
+            echo -e "${GREEN}  防火墙已开启${NC}"
+          else
+            echo "  已取消"
+            read -p "  按回车继续..."
+            continue
+          fi
+        fi
+        # 清理旧版无效规则（普通 deny 规则不生效，避免状态显示混乱）
+        ufw delete deny in proto icmp icmp-type echo-request >/dev/null 2>&1
+        # 按当前状态切换（改 /etc/ufw/before.rules 的 echo-request ACCEPT/DROP，v4+v6）
+        if grep -q -- '--icmp-type echo-request -j DROP' /etc/ufw/before.rules 2>/dev/null; then
+          if confirm "当前 ping 已禁止，确认允许 ping?"; then
+            sed -i 's/\(--icmp-type echo-request -j \)DROP/\1ACCEPT/' /etc/ufw/before.rules
+            [ -f /etc/ufw/before6.rules ] && sed -i 's/\(--icmp-type echo-request -j \)DROP/\1ACCEPT/' /etc/ufw/before6.rules
+            ufw reload >/dev/null 2>&1
+            # 允许 ping 后备份已无意义，自动清理（零残留）
+            rm -f /tmp/ufw-before*.bak.* 2>/dev/null
+            echo -e "${GREEN}  已允许 ping${NC}"
+          else
+            echo "  已取消"
+          fi
+        else
+          if confirm "当前 ping 已允许，确认禁止 ping?"; then
+            # 备份到 /tmp（重启自动清理，不在 /etc/ufw 残留文件）
+            cp /etc/ufw/before.rules /tmp/ufw-before.rules.bak.$SECONDS 2>/dev/null
+            sed -i 's/\(--icmp-type echo-request -j \)ACCEPT/\1DROP/' /etc/ufw/before.rules
+            if [ -f /etc/ufw/before6.rules ]; then
+              cp /etc/ufw/before6.rules /tmp/ufw-before6.rules.bak.$SECONDS 2>/dev/null
+              sed -i 's/\(--icmp-type echo-request -j \)ACCEPT/\1DROP/' /etc/ufw/before6.rules
+            fi
+            ufw reload >/dev/null 2>&1
+            echo -e "${GREEN}  已禁止 ping${NC}"
+          else
+            echo "  已取消"
+          fi
+        fi
+        read -p "  按回车继续..."
+        ;;
+      6)
         if confirm "确认重置默认策略 (入站拒绝/出站允许)?"; then
           echo -e "${YELLOW}  重置默认策略为: 入站拒绝 / 出站允许${NC}"
           ufw default deny incoming
           ufw default allow outgoing
-          echo -e "${GREEN}  默认策略已重置 (进站全封，出站全开)${NC}"
+          # 重置时同时恢复 Ping 允许（echo-request 改回 ACCEPT，v4+v6）
+          sed -i 's/\(--icmp-type echo-request -j \)DROP/\1ACCEPT/' /etc/ufw/before.rules
+          [ -f /etc/ufw/before6.rules ] && sed -i 's/\(--icmp-type echo-request -j \)DROP/\1ACCEPT/' /etc/ufw/before6.rules
+          ufw reload >/dev/null 2>&1
+          rm -f /tmp/ufw-before*.bak.* 2>/dev/null
+          echo -e "${GREEN}  默认策略已重置 (进站全封，出站全开，Ping 已恢复允许)${NC}"
         else
           echo "  已取消"
         fi
@@ -1449,7 +1464,7 @@ sys_proxy() {
     echo -e "   ${GREEN}0${NC}) 返回主菜单"
     echo "  ──────────────────────────────────────"
     echo ""
-    read -p "  请选择: " opt
+    read -p "  请输入选项: " opt
     case "$opt" in
       1)
         read -p "  输入代理 IP 或域名: " proxy_ip
@@ -1729,7 +1744,7 @@ sys_files() {
               fi
               echo -e "   ${GREEN}0${NC}) 返回"
               echo "  ──────────────────────────────────────"
-              read -p "  请选择: " fop
+              read -p "  请输入选项: " fop
               case "$fop" in
                 1)
                   clear
@@ -2004,7 +2019,7 @@ sys_packages() {
             echo -e "   ${GREEN}0${NC}) 返回列表"
             echo "  ──────────────────────────────────────"
             echo ""
-            read -p "  请选择: " pop
+            read -p "  请输入选项: " pop
             case "$pop" in
               1)
                 # 系统关键包禁止卸载
@@ -2042,21 +2057,576 @@ sys_packages() {
   done
 }
 
+# 流媒体检测辅助: $1=平台名 $2=URL $3=CN重定向检查(1/0) $4=地区不支持关键词(可空)
+# 结果追加到全局变量 MEDIA_OUT，检测完统一输出
+# 单次请求 + 收紧超时，避免拖慢小机型；仅需状态码的平台零内容下载
+media_check() {
+  local name="$1" url="$2" cnchk="$3" unavail="$4"
+  local ua="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+  local code="" html=""
+  # 全局期限保护：整组检测限时，到期未测项快速跳过（防个别接口异常拖死整个模块）
+  if [ -n "$NET_DEADLINE" ] && [ "$SECONDS" -ge "$NET_DEADLINE" ]; then
+    MEDIA_OUT+="  $name: ${YELLOW}超时跳过${NC}"$'\n'
+    return
+  fi
+  if [ "$cnchk" = "1" ] || [ -n "$unavail" ]; then
+    # 需要页面内容判断：一次请求同时拿状态码和内容（限制 1MB，防内存占用）
+    local out
+    out=$(curl -sL --noproxy '*' --compressed --max-filesize 1000000 --connect-timeout 3 --max-time 5 \
+      -A "$ua" -H "Accept-Language: en-US,en;q=0.9" -w $'\n%{http_code}' "$url" 2>/dev/null)
+    code=$(printf '%s' "$out" | tail -1 | tr -d '\r')
+    html=${out%$'\n'*}
+  else
+    # 只需状态码：零内容下载，最省 CPU/内存
+    code=$(curl -sL --noproxy '*' --compressed --connect-timeout 3 --max-time 5 -o /dev/null -w "%{http_code}" \
+      -A "$ua" -H "Accept-Language: en-US,en;q=0.9" "$url" 2>/dev/null)
+  fi
+  [ -z "$code" ] && code="000"
+  case "$code" in
+    000)
+      MEDIA_OUT+="  $name: ${RED}无法访问${NC}"$'\n'
+      ;;
+    200|201|202|204|301|302|303|307|308)
+      if [ -n "$html" ]; then
+        if [ "$cnchk" = "1" ] && echo "$html" | grep -q "www.google.cn"; then
+          MEDIA_OUT+="  $name: ${YELLOW}CN (被重定向)${NC}"$'\n'
+          return
+        fi
+        if [ -n "$unavail" ] && echo "$html" | grep -qi "$unavail"; then
+          MEDIA_OUT+="  $name: ${YELLOW}地区不支持${NC}"$'\n'
+          return
+        fi
+      fi
+      MEDIA_OUT+="  $name: ${GREEN}可访问${NC}"$'\n'
+      ;;
+    403)
+      MEDIA_OUT+="  $name: ${YELLOW}被拦截 (HTTP 403)${NC}"$'\n'
+      ;;
+    *)
+      MEDIA_OUT+="  $name: ${RED}不可访问 (HTTP $code)${NC}"$'\n'
+      ;;
+  esac
+}
+
+# ---------- 2. 网络状态 ----------
+# 获取本机公网 IP：ip-api.com 优先（可同时拿地理位置），失败则多接口轮询兜底，任一成功即返回
+# 成功时 PUB_IP=出口IP，PUB_GEO=地理位置 JSON（尽力而为）
+get_pub_ip() {
+  PUB_IP=""; PUB_GEO=""
+  local api start
+  start=$SECONDS
+  PUB_GEO=$(curl -s --noproxy '*' --connect-timeout 3 --max-time 6 "http://ip-api.com/json/?lang=zh-CN&fields=status,query,country,city,isp,org,as" 2>/dev/null)
+  if echo "$PUB_GEO" | grep -q '"status":"success"'; then
+    PUB_IP=$(echo "$PUB_GEO" | grep -oE '"query":"[^"]*"' | cut -d'"' -f4)
+    return 0
+  fi
+  # 兜底：https 多接口轮询（防 http 出站被限制），任一成功即返回；总时长上限 15 秒防卡死
+  for api in "https://api.ipify.org" "https://icanhazip.com" "https://ipinfo.io/ip" "https://ip.sb" "https://api.ip.sb/ip" "https://ifconfig.me/ip" "https://ipv4.icanhazip.com" "https://myip.ipip.net"; do
+    [ $((SECONDS - start)) -ge 15 ] && break
+    PUB_IP=$(curl -s --noproxy '*' --connect-timeout 3 --max-time 5 "$api" 2>/dev/null | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -1)
+    [ -n "$PUB_IP" ] && break
+  done
+  if [ -n "$PUB_IP" ]; then
+    PUB_GEO=$(curl -s --noproxy '*' --connect-timeout 3 --max-time 5 "http://ip-api.com/json/${PUB_IP}?lang=zh-CN&fields=status,query,country,city,isp,org,as" 2>/dev/null)
+  fi
+}
+
+# 出口 IP 检测 (多接口轮询，任一成功即返回，避免单接口失效)
+sys_net() {
+  clear
+  echo -e "${CYAN}────────── 网络状态 ──────────${NC}"
+  echo ""
+  echo -e "${YELLOW}-- IP 信息 --${NC}"
+  echo -en "${YELLOW}  正在加载...${NC}"
+  local ip="" geo=""
+  get_pub_ip
+  ip="$PUB_IP"; geo="$PUB_GEO"
+  # 清除"正在加载"提示行
+  printf '\r\033[K'
+  if [ -z "$ip" ]; then
+    echo -e "${RED}  获取出口 IP 失败，请检查网络${NC}"
+    read -p "  按回车返回主菜单..."
+    return
+  fi
+  echo -e "  出口 IP: ${GREEN}$ip${NC}"
+  # 地理位置与 ISP 解析
+  local country city isp org asn
+  country=$(echo "$geo" | grep -oE '"country":"[^"]*"' | cut -d'"' -f4)
+  city=$(echo "$geo" | grep -oE '"city":"[^"]*"' | cut -d'"' -f4)
+  isp=$(echo "$geo" | grep -oE '"isp":"[^"]*"' | cut -d'"' -f4)
+  org=$(echo "$geo" | grep -oE '"org":"[^"]*"' | cut -d'"' -f4)
+  asn=$(echo "$geo" | grep -oE '"as":"[^"]*"' | cut -d'"' -f4)
+  [ -n "$country" ] && echo "  国家: $country"
+  [ -n "$city" ] && echo "  城市: $city"
+  [ -n "$isp" ] && echo "  ISP: $isp"
+  [ -n "$org" ] && echo "  组织: $org"
+  [ -n "$asn" ] && echo "  ASN: $asn"
+  # 流媒体检测（整组限时 20 秒，超时项跳过，防卡死）
+  echo ""
+  echo -e "${YELLOW}-- 流媒体 --${NC}"
+  echo -en "${YELLOW}  正在加载...${NC}"
+  MEDIA_OUT=""
+  NET_DEADLINE=$((SECONDS + 20))
+  media_check "YouTube" "https://www.youtube.com/premium" 1 ""
+  media_check "Netflix" "https://www.netflix.com/title/80018499" 0 "not available in your"
+  media_check "TikTok" "https://www.tiktok.com/" 0 ""
+  media_check "Spotify" "https://open.spotify.com/" 0 ""
+  media_check "Apple TV+" "https://tv.apple.com/" 0 ""
+  media_check "Disney+" "https://www.disneyplus.com/" 0 ""
+  media_check "Amazon Prime" "https://www.primevideo.com/" 0 ""
+  # 清除"正在加载"提示行并输出结果
+  printf '\r\033[K'
+  echo -e "${MEDIA_OUT%$'\n'}"
+  # AI 检测（整组限时 18 秒，超时项跳过，防卡死）
+  echo ""
+  echo -e "${YELLOW}-- AI --${NC}"
+  echo -en "${YELLOW}  正在加载...${NC}"
+  MEDIA_OUT=""
+  NET_DEADLINE=$((SECONDS + 18))
+  media_check "ChatGPT" "https://chatgpt.com" 0 ""
+  media_check "Claude" "https://claude.ai" 0 ""
+  media_check "Gemini" "https://gemini.google.com" 0 ""
+  media_check "Grok" "https://grok.com" 0 ""
+  media_check "DeepSeek" "https://chat.deepseek.com" 0 ""
+  media_check "豆包" "https://www.doubao.com" 0 ""
+  # 清除"正在加载"提示行并输出结果
+  printf '\r\033[K'
+  echo -e "${MEDIA_OUT%$'\n'}"
+  echo ""
+  read -p "  按回车返回主菜单..."
+}
+
+# ---------- 12. Ping 测试 ----------
+# 检测结果页共用菜单：显示选项并处理选择，选 0 返回主菜单
+# 双层循环：菜单只显示一次，无效输入原地提示不堆叠，检测完自动重显菜单
+ping_action() {
+  local choice
+  while true; do
+    # 清空检测期间积压的键盘输入，防止误触发下个选项
+    if [ -t 0 ]; then
+      while read -r -t 0; do read -r; done 2>/dev/null
+    fi
+    echo "  ──────────────────────────────────────"
+    echo -e "   ${GREEN}1${NC}) Ping 测试"
+    echo -e "   ${GREEN}2${NC}) 丢包测试"
+    echo -e "   ${GREEN}3${NC}) 自定义 Ping"
+    echo -e "   ${GREEN}4${NC}) 自定义丢包测试"
+    echo -e "   ${GREEN}5${NC}) Globalping"
+    echo -e "   ${GREEN}0${NC}) 返回主菜单"
+    echo "  ──────────────────────────────────────"
+    echo ""
+    while true; do
+      read -p "  请输入选项: " choice
+      case "$choice" in
+        1) ping_both; break ;;
+        2) loss_both; break ;;
+        3) ping_custom; break ;;
+        4) ping_custom_loss; break ;;
+        5) ping_global; break ;;
+        0) return 0 ;;
+        *) echo -e "${RED}  无效选项，请重新输入${NC}" ;;
+      esac
+    done
+  done
+}
+
+# 国内 Ping：对常用国内官方域名各 ping 10 次取平均，每测完一个立即显示 (纯本地命令，零依赖)
+ping_cn() {
+  echo -e "${YELLOW}-- 国内延迟检测 --${NC}"
+  local sites=("百度:baidu.com" "腾讯:qq.com" "淘宝:taobao.com" "B站:bilibili.com" "抖音:douyin.com")
+  local s name d out avg loss w i ch code
+  echo -en "${YELLOW}  正在加载...${NC}"
+  for s in "${sites[@]}"; do
+    name="${s%%:*}"
+    d="${s##*:}"
+    # 按显示宽度对齐（中文/全角按 2 列，纯 bash 计算，兼容 mawk/gawk），统一补到 6 列
+    w=0
+    for ((i=0; i<${#name}; i++)); do
+      ch="${name:i:1}"
+      printf -v code "%d" "'$ch" 2>/dev/null
+      (( code > 127 )) && w=$((w+2)) || w=$((w+1))
+    done
+    while (( w < 6 )); do name+=" "; w=$((w+1)); done
+    out=$(timeout 8 ping -c 10 -i 0.2 -W 1 "$d" 2>/dev/null)
+    avg=$(printf '%s\n' "$out" | grep -oE '= [0-9.]+/[0-9.]+/[0-9.]+' | head -1 | sed 's/= //' | cut -d'/' -f2)
+    printf '\r\033[K'
+    if [ -n "$avg" ]; then
+      printf "  %s${GREEN}延迟 %sms${NC}\n" "$name" "$avg"
+    else
+      printf "  %s${RED}无法连通${NC}\n" "$name"
+    fi
+    echo -en "${YELLOW}  正在加载...${NC}"
+  done
+  printf '\r\033[K'
+  echo ""
+}
+
+# 国际 Ping：对常用国际站点各 ping 10 次取平均，实时显示 (纯本地命令，零依赖)
+ping_intl() {
+  echo -e "${YELLOW}-- 国际延迟检测 --${NC}"
+  local sites=("Google:google.com" "Cloudflare:cloudflare.com" "GitHub:github.com" "YouTube:youtube.com" "Microsoft:microsoft.com")
+  local s name d out avg loss
+  echo -en "${YELLOW}  正在加载...${NC}"
+  for s in "${sites[@]}"; do
+    name="${s%%:*}"
+    d="${s##*:}"
+    out=$(timeout 8 ping -c 10 -i 0.2 -W 1 "$d" 2>/dev/null)
+    avg=$(printf '%s\n' "$out" | grep -oE '= [0-9.]+/[0-9.]+/[0-9.]+' | head -1 | sed 's/= //' | cut -d'/' -f2)
+    printf '\r\033[K'
+    if [ -n "$avg" ]; then
+      printf "  %-12s ${GREEN}延迟 %sms${NC}\n" "$name" "$avg"
+    else
+      printf "  %-12s ${RED}无法连通${NC}\n" "$name"
+    fi
+    echo -en "${YELLOW}  正在加载...${NC}"
+  done
+  printf '\r\033[K'
+  echo ""
+}
+
+# 国内丢包测试：常用国内官方域名各 ping 100 次（1% 粒度），实时显示丢包率
+ping_cn_loss() {
+  echo -e "${YELLOW}-- 国内丢包检测 --${NC}"
+  local sites=("百度:baidu.com" "腾讯:qq.com" "淘宝:taobao.com" "B站:bilibili.com" "抖音:douyin.com")
+  local s name d out loss lpct w i ch code
+  echo -en "${YELLOW}  正在加载...${NC}"
+  for s in "${sites[@]}"; do
+    name="${s%%:*}"
+    d="${s##*:}"
+    # 按显示宽度对齐（中文/全角按 2 列，纯 bash 计算，兼容 mawk/gawk），统一补到 6 列
+    w=0
+    for ((i=0; i<${#name}; i++)); do
+      ch="${name:i:1}"
+      printf -v code "%d" "'$ch" 2>/dev/null
+      (( code > 127 )) && w=$((w+2)) || w=$((w+1))
+    done
+    while (( w < 6 )); do name+=" "; w=$((w+1)); done
+    out=$(timeout 30 ping -c 100 -i 0.2 -W 1 "$d" 2>/dev/null)
+    loss=$(printf '%s\n' "$out" | grep -oE '[0-9]+% packet loss' | head -1)
+    printf '\r\033[K'
+    if [ -n "$loss" ]; then
+      lpct=${loss/ packet loss/}
+      if [ "$lpct" = "0%" ]; then
+        printf "  %s${GREEN}丢包 %s${NC}\n" "$name" "$lpct"
+      else
+        printf "  %s${YELLOW}丢包 %s${NC}\n" "$name" "$lpct"
+      fi
+    else
+      printf "  %s${RED}无法连通${NC}\n" "$name"
+    fi
+    echo -en "${YELLOW}  正在加载...${NC}"
+  done
+  printf '\r\033[K'
+  echo ""
+}
+
+# 国际丢包测试：常用国际站点各 ping 100 次（1% 粒度），实时显示丢包率
+ping_intl_loss() {
+  echo -e "${YELLOW}-- 国际丢包检测 --${NC}"
+  local sites=("Google:google.com" "Cloudflare:cloudflare.com" "GitHub:github.com" "YouTube:youtube.com" "Microsoft:microsoft.com")
+  local s name d out loss lpct
+  echo -en "${YELLOW}  正在加载...${NC}"
+  for s in "${sites[@]}"; do
+    name="${s%%:*}"
+    d="${s##*:}"
+    out=$(timeout 30 ping -c 100 -i 0.2 -W 1 "$d" 2>/dev/null)
+    loss=$(printf '%s\n' "$out" | grep -oE '[0-9]+% packet loss' | head -1)
+    printf '\r\033[K'
+    if [ -n "$loss" ]; then
+      lpct=${loss/ packet loss/}
+      if [ "$lpct" = "0%" ]; then
+        printf "  %-12s ${GREEN}丢包 %s${NC}\n" "$name" "$lpct"
+      else
+        printf "  %-12s ${YELLOW}丢包 %s${NC}\n" "$name" "$lpct"
+      fi
+    else
+      printf "  %-12s ${RED}无法连通${NC}\n" "$name"
+    fi
+    echo -en "${YELLOW}  正在加载...${NC}"
+  done
+  printf '\r\033[K'
+  echo ""
+}
+
+# 整合 Ping 测试：依次测国内、国际，各测 10 次实时显示
+ping_both() {
+  clear
+  echo -e "${CYAN}────────── Ping 测试 ──────────${NC}"
+  ping_cn
+  ping_intl
+}
+
+# 整合丢包测试：依次测国内、国际，各测 100 次实时显示丢包率
+loss_both() {
+  clear
+  echo -e "${CYAN}────────── Ping 测试 ──────────${NC}"
+  ping_cn_loss
+  ping_intl_loss
+}
+
+# 自定义 Ping：输入 IP 或域名，ping 10 次取平均
+ping_custom() {
+  clear
+  echo -e "${CYAN}────────── Ping 测试 ──────────${NC}"
+  echo -e "${YELLOW}-- 自定义 Ping --${NC}"
+  local target out avg
+  read -p "  请输入 IP 或域名: " target
+  if [ -z "$target" ]; then
+    echo -e "${RED}  输入为空，已取消${NC}"
+    return
+  fi
+  echo -en "${YELLOW}  正在加载...${NC}"
+  out=$(timeout 8 ping -c 10 -i 0.2 -W 1 "$target" 2>/dev/null)
+  avg=$(printf '%s\n' "$out" | grep -oE '= [0-9.]+/[0-9.]+/[0-9.]+' | head -1 | sed 's/= //' | cut -d'/' -f2)
+  printf '\r\033[K'
+  if [ -n "$avg" ]; then
+    printf "  %-15s ${GREEN}延迟 %sms${NC}\n" "$target" "$avg"
+  else
+    printf "  %-15s ${RED}无法连通${NC}\n" "$target"
+  fi
+  echo ""
+}
+
+# 自定义丢包测试：输入 IP 或域名，ping 100 次（1% 粒度）
+ping_custom_loss() {
+  clear
+  echo -e "${CYAN}────────── Ping 测试 ──────────${NC}"
+  echo -e "${YELLOW}-- 自定义丢包测试 --${NC}"
+  local target out loss lpct
+  read -p "  请输入 IP 或域名: " target
+  if [ -z "$target" ]; then
+    echo -e "${RED}  输入为空，已取消${NC}"
+    return
+  fi
+  echo -en "${YELLOW}  正在加载...${NC}"
+  out=$(timeout 30 ping -c 100 -i 0.2 -W 1 "$target" 2>/dev/null)
+  loss=$(printf '%s\n' "$out" | grep -oE '[0-9]+% packet loss' | head -1)
+  printf '\r\033[K'
+  if [ -n "$loss" ]; then
+    lpct=${loss/ packet loss/}
+    if [ "$lpct" = "0%" ]; then
+      printf "  %-15s ${GREEN}丢包 %s${NC}\n" "$target" "$lpct"
+    else
+      printf "  %-15s ${YELLOW}丢包 %s${NC}\n" "$target" "$lpct"
+    fi
+  else
+    printf "  %-15s ${RED}无法连通${NC}\n" "$target"
+  fi
+  echo ""
+}
+
+# 国家码 → 中文名
+glob_country_name() {
+  case "$1" in
+    US) echo "美国" ;; CA) echo "加拿大" ;; MX) echo "墨西哥" ;;
+    BR) echo "巴西" ;; CL) echo "智利" ;; AR) echo "阿根廷" ;; CO) echo "哥伦比亚" ;; PE) echo "秘鲁" ;; EC) echo "厄瓜多尔" ;; BO) echo "玻利维亚" ;; TT) echo "特立尼达和多巴哥" ;;
+    GB) echo "英国" ;; DE) echo "德国" ;; NL) echo "荷兰" ;; FR) echo "法国" ;; RU) echo "俄罗斯" ;; FI) echo "芬兰" ;; SE) echo "瑞典" ;; PL) echo "波兰" ;; AT) echo "奥地利" ;; RO) echo "罗马尼亚" ;; CH) echo "瑞士" ;; IT) echo "意大利" ;; ES) echo "西班牙" ;; PT) echo "葡萄牙" ;; NO) echo "挪威" ;; BG) echo "保加利亚" ;; IE) echo "爱尔兰" ;; UA) echo "乌克兰" ;; DK) echo "丹麦" ;; CZ) echo "捷克" ;; LV) echo "拉脱维亚" ;; HU) echo "匈牙利" ;; SK) echo "斯洛伐克" ;; RS) echo "塞尔维亚" ;; MD) echo "摩尔多瓦" ;; BE) echo "比利时" ;; AL) echo "阿尔巴尼亚" ;; HR) echo "克罗地亚" ;; GR) echo "希腊" ;; EE) echo "爱沙尼亚" ;; BY) echo "白俄罗斯" ;; MT) echo "马耳他" ;; LU) echo "卢森堡" ;; LT) echo "立陶宛" ;; MK) echo "北马其顿" ;; IS) echo "冰岛" ;; CY) echo "塞浦路斯" ;; AD) echo "安道尔" ;; XK) echo "科索沃" ;;
+    JP) echo "日本" ;; SG) echo "新加坡" ;; HK) echo "香港" ;; CN) echo "中国" ;; IN) echo "印度" ;; ID) echo "印度尼西亚" ;; TH) echo "泰国" ;; TW) echo "台湾" ;; KR) echo "韩国" ;; MY) echo "马来西亚" ;; TR) echo "土耳其" ;; VN) echo "越南" ;; BD) echo "孟加拉" ;; PK) echo "巴基斯坦" ;; PH) echo "菲律宾" ;; IL) echo "以色列" ;; AE) echo "阿联酋" ;; SA) echo "沙特阿拉伯" ;; KZ) echo "哈萨克斯坦" ;; AZ) echo "阿塞拜疆" ;; LA) echo "老挝" ;; QA) echo "卡塔尔" ;; OM) echo "阿曼" ;; MV) echo "马尔代夫" ;; MO) echo "澳门" ;; KW) echo "科威特" ;; BH) echo "巴林" ;; YE) echo "也门" ;; AM) echo "亚美尼亚" ;;
+    AU) echo "澳大利亚" ;; NZ) echo "新西兰" ;; VU) echo "瓦努阿图" ;;
+    ZA) echo "南非" ;; NG) echo "尼日利亚" ;; UG) echo "乌干达" ;; AO) echo "安哥拉" ;; MA) echo "摩洛哥" ;;
+    BA) echo "波黑" ;; BF) echo "布基纳法索" ;; CR) echo "哥斯达黎加" ;; CW) echo "库拉索" ;; EG) echo "埃及" ;; GE) echo "格鲁吉亚" ;; GU) echo "关岛" ;; IR) echo "伊朗" ;; KE) echo "肯尼亚" ;; KG) echo "吉尔吉斯斯坦" ;; NA) echo "纳米比亚" ;; PA) echo "巴拿马" ;; PY) echo "巴拉圭" ;; RE) echo "留尼汪" ;; SB) echo "所罗门群岛" ;; SC) echo "塞舌尔" ;; SI) echo "斯洛文尼亚" ;; SL) echo "塞拉利昂" ;; SV) echo "萨尔瓦多" ;; TJ) echo "塔吉克斯坦" ;; UY) echo "乌拉圭" ;; KH) echo "柬埔寨" ;; NP) echo "尼泊尔" ;; MM) echo "缅甸" ;; LB) echo "黎巴嫩" ;;
+    *) echo "$1" ;;
+  esac
+}
+
+# 大洲码 → 中文名
+glob_continent_name() {
+  case "$1" in
+    AS) echo "亚洲" ;; EU) echo "欧洲" ;; NA) echo "北美" ;;
+    SA) echo "南美" ;; OC) echo "大洋洲" ;; AF) echo "非洲" ;;
+    *) echo "$1" ;;
+  esac
+}
+
+# 从指定国家节点检测本机 IP（limit 5，不足自动取实际数量）
+glob_test_country() {
+  local ip="$1" cc="$2" resp mid res raw avg loss_pct city w i ch code
+  clear
+  echo -e "${CYAN}────────── Globalping ──────────${NC}"
+  echo -e "  本机 IP: ${GREEN}$ip${NC}"
+  echo -e "${YELLOW}-- 正在从 $(glob_country_name "$cc") 节点检测 --${NC}"
+  resp=$(curl -s --noproxy '*' --connect-timeout 10 --max-time 20 -X POST "https://api.globalping.io/v1/measurements" -H "Content-Type: application/json" -d "{\"type\":\"ping\",\"target\":\"$ip\",\"limit\":5,\"locations\":[{\"country\":\"$cc\"}]}")
+  mid=$(printf '%s' "$resp" | grep -oE '"id"[[:space:]]*:[[:space:]]*"[^"]+"' | head -1 | cut -d'"' -f4)
+  if [ -z "$mid" ]; then
+    echo -e "${RED}  请求失败，请检查网络${NC}"
+    echo ""
+    sleep 1
+    return
+  fi
+  # 轮询结果，最多 30 秒；接口异常时提前退出，避免长时间卡住
+  for i in $(seq 1 15); do
+    sleep 2
+    res=$(curl -s --noproxy '*' --connect-timeout 10 --max-time 30 "https://api.globalping.io/v1/measurements/$mid" -H "Accept: application/json")
+    [ -z "$res" ] && break
+    printf '%s' "$res" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"finished"' && break
+  done
+  # 最终仍未完成或结果为空时明确提示，避免白屏
+  if ! printf '%s' "$res" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"finished"'; then
+    echo -e "${RED}  检测超时或无结果，请稍后重试${NC}"
+    echo ""
+    sleep 1
+    return
+  fi
+  # 逐节点解析显示（grep 交替提取 city/rawOutput，兼容 mawk）
+  while IFS= read -r line; do
+    if printf '%s' "$line" | grep -q '"city"'; then
+      city=$(printf '%s' "$line" | cut -d'"' -f4)
+      [ -z "$city" ] && city="未知"
+      # 按显示宽度对齐（中文/全角按 2 列），统一补到 12 列
+      w=0
+      for ((i=0; i<${#city}; i++)); do
+        ch="${city:i:1}"
+        printf -v code "%d" "'$ch" 2>/dev/null
+        (( code > 127 )) && w=$((w+2)) || w=$((w+1))
+      done
+      while (( w < 12 )); do city+=" "; w=$((w+1)); done
+    else
+      raw=$(printf '%s' "$line" | cut -d'"' -f4 | sed 's/\\n/\n/g')
+      avg=$(printf '%s\n' "$raw" | grep -oE '= [0-9.]+/[0-9.]+/[0-9.]+' | head -1 | sed 's/= //' | cut -d'/' -f2)
+      loss_pct=$(printf '%s\n' "$raw" | grep -oE '[0-9]+% packet loss' | head -1 | grep -oE '^[0-9]+')
+      if [ -n "$avg" ]; then
+        if [ "${loss_pct:-0}" = "0" ]; then
+          printf "  %s${GREEN}延迟 %sms${NC}  (0%% 丢包)\n" "$city" "$avg"
+        else
+          printf "  %s${YELLOW}延迟 %sms${NC}  (丢包 %s%%)\n" "$city" "$avg" "$loss_pct"
+        fi
+      else
+        printf "  %s${RED}无法连通${NC}\n" "$city"
+      fi
+    fi
+  done < <(printf '%s' "$res" | grep -oE '"city"[[:space:]]*:[[:space:]]*"[^"]*"|"rawOutput"[[:space:]]*:[[:space:]]*"[^"]*"')
+  echo ""
+}
+
+# 某大洲的国家选择菜单
+glob_country_menu() {
+  local cont="$1" ip="$2" data="$3"
+  local cc_list=() cnt_list=() line cnt cc gsel i
+  while IFS= read -r line; do
+    set -- $line
+    cnt=$1; cc=${2#*:}
+    cc_list+=("$cc"); cnt_list+=("$cnt")
+  done < <(printf '%s\n' "$data" | grep " $cont:")
+  while true; do
+    clear
+    echo -e "${CYAN}────────── Globalping ──────────${NC}"
+    echo -e "  本机 IP: ${GREEN}$ip${NC}"
+    echo ""
+    echo -e "${YELLOW}-- $(glob_continent_name "$cont") --${NC}"
+    echo "  ──────────────────────────────────────"
+    for i in "${!cc_list[@]}"; do
+      printf "   ${GREEN}%d${NC}) %s (%s节点)\n" "$((i+1))" "$(glob_country_name "${cc_list[$i]}")" "${cnt_list[$i]}"
+    done
+    echo -e "   ${GREEN}0${NC}) 返回大洲"
+    echo "  ──────────────────────────────────────"
+    echo ""
+    read -p "  请输入选项: " gsel
+    if [ "$gsel" = "0" ]; then return 0; fi
+    if [ "$gsel" -ge 1 ] 2>/dev/null && [ "$gsel" -le "${#cc_list[@]}" ]; then
+      glob_test_country "$ip" "${cc_list[$((gsel-1))]}"
+      read -p "  按回车返回国家列表..."
+    else
+      echo -e "${RED}  无效选项，请重新输入${NC}"
+      sleep 1
+    fi
+  done
+}
+
+# Globalping：实时拉取官方国家列表 → 选大洲 → 选国家 → 从该国节点检测本机
+ping_global() {
+  local ip data conts c nc idx csel
+  clear
+  echo -e "${CYAN}────────── Globalping ──────────${NC}"
+  echo -en "${YELLOW}  正在加载...${NC}"
+  get_pub_ip
+  ip="$PUB_IP"
+  if [ -z "$ip" ]; then
+    printf '\r\033[K'
+    echo -e "${RED}  获取本机 IP 失败，请检查网络${NC}"
+    echo ""
+    read -p "  按回车返回主菜单..."
+    return
+  fi
+  # 实时拉取官方节点列表（先下载到变量，失败可区分原因）
+  local probes_raw
+  probes_raw=$(curl -s --noproxy '*' --connect-timeout 10 --max-time 50 "https://api.globalping.io/v1/probes" -H "Accept: application/json")
+  if [ -z "$probes_raw" ]; then
+    printf '\r\033[K'
+    echo -e "${RED}  获取国家列表失败（接口无响应，超时或被阻断）${NC}"
+    echo ""
+    read -p "  按回车返回主菜单..."
+    return
+  fi
+  # 统计 "数量 洲:国"（grep 交替配对 + cut 取值，兼容 mawk 与两种 JSON 格式）
+  data=$(printf '%s' "$probes_raw" | grep -oE '"(continent|country)"[[:space:]]*:[[:space:]]*"[A-Z]{2}"' | cut -d'"' -f4 | awk 'NR%2==1 { c=$0 } NR%2==0 { print c":"$0 }' | sort | uniq -c | sort -rn)
+  printf '\r\033[K'
+  if [ -z "$data" ]; then
+    echo -e "${RED}  获取国家列表失败（数据解析为空）${NC}"
+    echo ""
+    read -p "  按回车返回主菜单..."
+    return
+  fi
+  # 有节点的洲
+  conts=()
+  for c in AS EU NA SA OC AF; do
+    printf '%s\n' "$data" | grep -q " $c:" && conts+=("$c")
+  done
+  while true; do
+    clear
+    echo -e "${CYAN}────────── Globalping ──────────${NC}"
+    echo -e "  本机 IP: ${GREEN}$ip${NC}"
+    echo ""
+    echo "  ──────────────────────────────────────"
+    idx=1
+    for c in "${conts[@]}"; do
+      nc=$(printf '%s\n' "$data" | grep " $c:" | wc -l)
+      printf "   ${GREEN}%d${NC}) %s (%d国)\n" "$idx" "$(glob_continent_name "$c")" "$nc"
+      idx=$((idx+1))
+    done
+    echo -e "   ${GREEN}0${NC}) 返回主菜单"
+    echo "  ──────────────────────────────────────"
+    echo ""
+    read -p "  请输入选项: " csel
+    if [ "$csel" = "0" ]; then
+      clear
+      echo -e "${CYAN}────────── Ping 测试 ──────────${NC}"
+      echo ""
+      return
+    fi
+    if [ "$csel" -ge 1 ] 2>/dev/null && [ "$csel" -le "${#conts[@]}" ]; then
+      glob_country_menu "${conts[$((csel-1))]}" "$ip" "$data" || return
+    else
+      echo -e "${RED}  无效选项，请重新输入${NC}"
+      sleep 1
+    fi
+  done
+}
+
+# Ping 测试入口
+sys_ping() {
+  clear
+  echo -e "${CYAN}────────── Ping 测试 ──────────${NC}"
+  echo ""
+  ping_action
+}
+
 # ---------- 主循环 ----------
 while true; do
   menu
   case "$choice" in
     1) sys_status; read -p "  按回车返回菜单..." ;;
-    2) sys_logs ;;
-    3) sys_clean ;;
-    4) sys_tools ;;
-    5) sys_ports ;;
-    6) sys_ufw ;;
-    7) sys_files ;;
-    8) sys_packages ;;
-    9) sys_bbr ;;
-    10) sys_proxy ;;
-    11) sys_notes ;;
+    2) sys_net ;;
+    3) sys_logs ;;
+    4) sys_clean ;;
+    5) sys_tools ;;
+    6) sys_ports ;;
+    7) sys_ufw ;;
+    8) sys_files ;;
+    9) sys_packages ;;
+    10) sys_bbr ;;
+    11) sys_proxy ;;
+    12) sys_ping ;;
+    13) sys_notes ;;
     0) echo "  再见"; exit 0 ;;
     *) ;;
   esac
