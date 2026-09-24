@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================
-#  Easy 管理面板  v1.3
+#  Easy 管理面板  v1.4
 #  纯本地 bash · 零下载 · 零第三方
 #  启动:       e
 #  源码审查:   cat /usr/local/bin/e
@@ -51,7 +51,7 @@ cover() {
 ▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀   ▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀
 COVER
   printf '\033[1;36m'
-  echo "                  E a s y 管 理 面 板  v1.3"
+  echo "                  E a s y 管 理 面 板  v1.4"
   printf '\033[0m'
   echo ""
 }
@@ -123,6 +123,8 @@ sys_status() {
   echo -e "${YELLOW}-- 网络信息 --${NC}"
   # 内网 IP
   ip -4 addr show | grep -v '127.0.0.1' | awk '/inet /{print "  内网IP: "$2" ("$NF")"}'
+  # 内网 IPv6 (仅全局地址，过滤链路本地 fe80::/10)
+  ip -6 addr show scope global 2>/dev/null | awk '/^[0-9]+:/{dev=$2; sub(/:$/,"",dev)} /inet6/{sub(/\/.*/,"",$2); print "  内网IPv6: "$2" ("dev")"}'
   # 默认网关
   gw=$(ip route | awk '/default/{print $3}')
   [ -n "$gw" ] && echo "  默认网关: $gw"
@@ -1018,37 +1020,94 @@ sys_uninstall() {
   fi
 }
 
+# ---------- 9. 上网设置 ----------
+# 切换 IPv4/IPv6 上网模式：单 IPv4（禁用 IPv6）或双栈（IPv4+IPv6 同时）
+# 持久化到 /etc/sysctl.d/99-ipv6.conf，重启后保持；sysctl -p 立即生效
+sys_netmode() {
+  while true; do
+    clear
+    echo -e "${CYAN}────────── 上网设置 ──────────${NC}"
+    echo ""
+    echo -e "${YELLOW}-- 当前上网模式 --${NC}"
+    if [ "$(sysctl -n net.ipv6.conf.all.disable_ipv6 2>/dev/null)" = "1" ]; then
+      echo -e "   ${GREEN}单 IPv4 上网${NC} (IPv6 已禁用)"
+    else
+      echo -e "   ${GREEN}IPv4 + IPv6 双栈上网${NC}"
+    fi
+    echo ""
+    echo "  ──────────────────────────────────────"
+    echo -e "   ${GREEN}1${NC}) 单 IPv4 上网"
+    echo -e "   ${GREEN}2${NC}) IPv4 + IPv6 双栈上网"
+    echo -e "   ${GREEN}0${NC}) 返回系统工具"
+    echo "  ──────────────────────────────────────"
+    echo ""
+    read -p "  请输入选项: " opt
+    case "$opt" in
+      1)
+        if confirm "确认切换为单 IPv4 上网? (将禁用 IPv6，SSH 走 IPv4 不受影响)"; then
+          if printf 'net.ipv6.conf.all.disable_ipv6 = 1\nnet.ipv6.conf.default.disable_ipv6 = 1\n' > /etc/sysctl.d/99-ipv6.conf 2>/dev/null; then
+            sysctl -p /etc/sysctl.d/99-ipv6.conf >/dev/null 2>&1
+            echo -e "${GREEN}  已切换为单 IPv4 上网 (重启后保持)${NC}"
+          else
+            echo -e "${RED}  写入失败 (权限不足或磁盘只读)，未生效${NC}"
+          fi
+        else
+          echo "  已取消"
+        fi
+        read -p "  按回车继续..."
+        ;;
+      2)
+        if confirm "确认切换为 IPv4 + IPv6 双栈上网? (将重新启用 IPv6)"; then
+          if printf 'net.ipv6.conf.all.disable_ipv6 = 0\nnet.ipv6.conf.default.disable_ipv6 = 0\n' > /etc/sysctl.d/99-ipv6.conf 2>/dev/null; then
+            sysctl -p /etc/sysctl.d/99-ipv6.conf >/dev/null 2>&1
+            echo -e "${GREEN}  已切换为 IPv4 + IPv6 双栈上网 (重启后保持)${NC}"
+          else
+            echo -e "${RED}  写入失败 (权限不足或磁盘只读)，未生效${NC}"
+          fi
+        else
+          echo "  已取消"
+        fi
+        read -p "  按回车继续..."
+        ;;
+      0) return ;;
+      *) ;;
+    esac
+  done
+}
+
 sys_tools() {
   while true; do
     clear
     echo -e "${CYAN}────────── 系统工具 ──────────${NC}"
     echo ""
     echo "  ──────────────────────────────────────"
-    echo -e "   ${GREEN}1${NC}) 软件源管理"
+    echo -e "   ${GREEN}1${NC}) 软件源管理     ${GREEN}11${NC}) Easy 脚本管理"
     echo -e "   ${GREEN}2${NC}) 虚拟内存设置"
-    echo -e "   ${GREEN}3${NC}) SSH 端口修改"
-    echo -e "   ${GREEN}4${NC}) 设置时区"
-    echo -e "   ${GREEN}5${NC}) 设置语言"
-    echo -e "   ${GREEN}6${NC}) 设置主机名"
-    echo -e "   ${GREEN}7${NC}) 设置登录密码"
-    echo -e "   ${GREEN}8${NC}) 定时重启"
-    echo -e "   ${GREEN}9${NC}) 重启服务器"
-    echo -e "  ${GREEN}10${NC}) Easy 脚本管理"
-    echo -e "   ${GREEN}0${NC}) 返回主菜单"
+    echo -e "   ${GREEN}3${NC}) 上网设置"
+    echo -e "   ${GREEN}4${NC}) SSH 端口修改"
+    echo -e "   ${GREEN}5${NC}) 设置时区"
+    echo -e "   ${GREEN}6${NC}) 设置语言"
+    echo -e "   ${GREEN}7${NC}) 设置主机名"
+    echo -e "   ${GREEN}8${NC}) 设置登录密码"
+    echo -e "   ${GREEN}9${NC}) 定时重启"
+    echo -e "  ${GREEN}10${NC}) 重启服务器"
+    echo ""
+    echo -e "               ${GREEN}0${NC}) 返回主菜单"
     echo "  ──────────────────────────────────────"
     echo ""
     read -p "  请输入选项: " opt
     case "$opt" in
       1) sys_apt_sources ;;
       2) sys_swap ;;
-      3) sys_ssh_port ;;
-      4) sys_timezone ;;
-      5) sys_locale ;;
-      6) sys_hostname ;;
-      7) sys_passwd ;;
-      8) sys_schedule_reboot ;;
-      9) sys_reboot ;;
-      10) sys_script_mgmt ;;
+      3) sys_netmode ;;
+      4) sys_ssh_port ;;
+      5) sys_timezone ;;
+      6) sys_locale ;;
+      7) sys_hostname ;;
+      8) sys_passwd ;;
+      9) sys_schedule_reboot ;;
+      10) sys_reboot ;;
+      11) sys_script_mgmt ;;
       0) return ;;
       *) ;;
     esac
@@ -1255,6 +1314,32 @@ sys_bbr() {
 }
 
 # ---------- 6. 防火墙管理 ----------
+# 放行/取消端口 (v4/v6 分离)：$1=v4|v6  $2=allow|delete  $3=端口(80|80/tcp|80/udp)
+# v4 用 0.0.0.0/0、v6 用 ::/0 限定地址族，只生成对应 iptables/ip6tables 规则
+fw_port() {
+  local family="$1" act="$2" port="$3" src pnum pproto
+  if [ "$family" = "v4" ]; then
+    src="0.0.0.0/0"
+  else
+    src="::/0"
+  fi
+  if [[ "$port" == */* ]]; then
+    pnum=${port%/*}
+    pproto=${port#*/}
+    if [ "$act" = "allow" ]; then
+      ufw allow from "$src" to any port "$pnum" proto "$pproto"
+    else
+      ufw delete allow from "$src" to any port "$pnum" proto "$pproto"
+    fi
+  else
+    if [ "$act" = "allow" ]; then
+      ufw allow from "$src" to any port "$port"
+    else
+      ufw delete allow from "$src" to any port "$port"
+    fi
+  fi
+}
+
 sys_ufw() {
   if ! command -v ufw >/dev/null 2>&1; then
     if confirm "未检测到 ufw，是否现在安装?"; then
@@ -1299,12 +1384,15 @@ sys_ufw() {
     fi
     echo ""
     echo "  ──────────────────────────────────────"
-    echo -e "   ${GREEN}1${NC}) 放行端口"
-    echo -e "   ${GREEN}2${NC}) 取消放行端口"
-    echo -e "   ${GREEN}3${NC}) 开启防火墙"
-    echo -e "   ${GREEN}4${NC}) 关闭防火墙"
-    echo -e "   ${GREEN}5${NC}) 开关 Ping"
-    echo -e "   ${GREEN}6${NC}) 重置默认策略"
+    echo -e "   ${GREEN}1${NC}) 放行 v4 端口"
+    echo -e "   ${GREEN}2${NC}) 取消放行 v4 端口"
+    echo -e "   ${GREEN}3${NC}) 放行 V6 端口"
+    echo -e "   ${GREEN}4${NC}) 取消放行 V6 端口"
+    echo -e "   ${GREEN}5${NC}) 开启防火墙"
+    echo -e "   ${GREEN}6${NC}) 关闭防火墙"
+    echo -e "   ${GREEN}7${NC}) 开关 Ping"
+    echo -e "   ${GREEN}8${NC}) 重置默认策略"
+    echo -e "   ${GREEN}9${NC}) 卸载防火墙"
     echo -e "   ${GREEN}0${NC}) 返回主菜单"
     echo "  ──────────────────────────────────────"
     echo ""
@@ -1315,7 +1403,7 @@ sys_ufw() {
         if [ "$port" = "0" ]; then
           echo "  已取消"
         elif port_check "$port"; then
-          ufw allow "$port" && echo -e "${GREEN}  已放行 ${port}${NC}" || echo -e "${RED}  操作失败${NC}"
+          fw_port v4 allow "$port" && echo -e "${GREEN}  已放行 v4 ${port}${NC}" || echo -e "${RED}  操作失败${NC}"
         else
           echo -e "${RED}  无效输入 (示例: 80 或 80/tcp 或 80/udp)${NC}"
         fi
@@ -1326,19 +1414,43 @@ sys_ufw() {
         if [ "$port" = "0" ]; then
           echo "  已取消"
         elif port_check "$port"; then
-          ufw delete allow "$port" && echo -e "${GREEN}  已取消 ${port}${NC}" || echo -e "${RED}  操作失败(可能未放行)${NC}"
+          fw_port v4 delete "$port" && echo -e "${GREEN}  已取消 v4 ${port}${NC}" || echo -e "${RED}  操作失败(可能未放行)${NC}"
         else
           echo -e "${RED}  无效输入 (示例: 80 或 80/tcp 或 80/udp)${NC}"
         fi
         read -p "  按回车继续..."
         ;;
       3)
+        read -p "  输入要放行的端口 (如 80、80/tcp、80/udp，输入0取消): " port
+        if [ "$port" = "0" ]; then
+          echo "  已取消"
+        elif port_check "$port"; then
+          fw_port v6 allow "$port" && echo -e "${GREEN}  已放行 V6 ${port}${NC}" || echo -e "${RED}  操作失败${NC}"
+        else
+          echo -e "${RED}  无效输入 (示例: 80 或 80/tcp 或 80/udp)${NC}"
+        fi
+        read -p "  按回车继续..."
+        ;;
+      4)
+        read -p "  输入要取消的端口 (如 80、80/tcp、80/udp，输入0取消): " port
+        if [ "$port" = "0" ]; then
+          echo "  已取消"
+        elif port_check "$port"; then
+          fw_port v6 delete "$port" && echo -e "${GREEN}  已取消 V6 ${port}${NC}" || echo -e "${RED}  操作失败(可能未放行)${NC}"
+        else
+          echo -e "${RED}  无效输入 (示例: 80 或 80/tcp 或 80/udp)${NC}"
+        fi
+        read -p "  按回车继续..."
+        ;;
+      5)
         if confirm "确认开启防火墙?"; then
-          # 保护：确保 22 端口已放行，防止开启防火墙后锁死 SSH
-          if ! ufw status | grep -qE '^22/tcp'; then
-            echo -e "${YELLOW}  检测到 22 端口未放行，为防止锁死 SSH，自动放行 22/tcp...${NC}"
-            ufw allow 22/tcp
-          fi
+          # 保护：无条件确保 v4 与 v6 的 22/tcp 都已放行，防止开启防火墙后锁死 SSH
+          # 不做文本检测（ufw 输出格式因版本而异，易误判），直接执行；
+          # ufw 对已存在的相同规则自动跳过 (Skipping adding existing rule)，幂等无副作用
+          echo -e "${YELLOW}  确保 IPv4 22/tcp 已放行...${NC}"
+          fw_port v4 allow 22/tcp
+          echo -e "${YELLOW}  确保 IPv6 22/tcp 已放行...${NC}"
+          fw_port v6 allow 22/tcp
           echo -e "${YELLOW}  开启防火墙中...${NC}"
           ufw --force enable
           echo -e "${GREEN}  防火墙已开启 (开机自启)${NC}"
@@ -1347,7 +1459,7 @@ sys_ufw() {
         fi
         read -p "  按回车继续..."
         ;;
-      4)
+      6)
         if confirm "确认关闭防火墙 (所有端口将暴露)?"; then
           echo -e "${YELLOW}  关闭防火墙中...${NC}"
           ufw disable
@@ -1357,7 +1469,7 @@ sys_ufw() {
         fi
         read -p "  按回车继续..."
         ;;
-      5)
+      7)
         # 防火墙关闭时：提示需先开启才能控制 ping
         if ! ufw status | grep -q "Status: active"; then
           echo -e "${YELLOW}  防火墙目前关闭，允许 ping 或禁止 ping 需要开启防火墙${NC}"
@@ -1376,43 +1488,75 @@ sys_ufw() {
         # 按当前状态切换（改 /etc/ufw/before.rules 的 echo-request ACCEPT/DROP，v4+v6）
         if grep -q -- '--icmp-type echo-request -j DROP' /etc/ufw/before.rules 2>/dev/null; then
           if confirm "当前 ping 已禁止，确认允许 ping?"; then
-            sed -i 's/\(--icmp-type echo-request -j \)DROP/\1ACCEPT/' /etc/ufw/before.rules
-            [ -f /etc/ufw/before6.rules ] && sed -i 's/\(--icmp-type echo-request -j \)DROP/\1ACCEPT/' /etc/ufw/before6.rules
-            ufw reload >/dev/null 2>&1
-            # 允许 ping 后备份已无意义，自动清理（零残留）
-            rm -f /tmp/ufw-before*.bak.* 2>/dev/null
-            echo -e "${GREEN}  已允许 ping${NC}"
+            if [ ! -f /etc/ufw/before.rules ]; then
+              echo -e "${RED}  未找到 /etc/ufw/before.rules，无法切换 Ping${NC}"
+            elif sed -i 's/\(--icmp-type echo-request -j \)DROP/\1ACCEPT/' /etc/ufw/before.rules 2>/dev/null && grep -q -- '--icmp-type echo-request -j ACCEPT' /etc/ufw/before.rules; then
+              [ -f /etc/ufw/before6.rules ] && sed -i 's/\(--icmp-type echo-request -j \)DROP/\1ACCEPT/' /etc/ufw/before6.rules 2>/dev/null
+              ufw reload >/dev/null 2>&1
+              # 允许 ping 后备份已无意义，自动清理（零残留）
+              rm -f /tmp/ufw-before*.bak.* 2>/dev/null
+              echo -e "${GREEN}  已允许 ping${NC}"
+            else
+              echo -e "${RED}  修改 before.rules 失败，未生效${NC}"
+            fi
           else
             echo "  已取消"
           fi
         else
           if confirm "当前 ping 已允许，确认禁止 ping?"; then
-            # 备份到 /tmp（重启自动清理，不在 /etc/ufw 残留文件）
-            cp /etc/ufw/before.rules /tmp/ufw-before.rules.bak.$SECONDS 2>/dev/null
-            sed -i 's/\(--icmp-type echo-request -j \)ACCEPT/\1DROP/' /etc/ufw/before.rules
-            if [ -f /etc/ufw/before6.rules ]; then
-              cp /etc/ufw/before6.rules /tmp/ufw-before6.rules.bak.$SECONDS 2>/dev/null
-              sed -i 's/\(--icmp-type echo-request -j \)ACCEPT/\1DROP/' /etc/ufw/before6.rules
+            if [ ! -f /etc/ufw/before.rules ]; then
+              echo -e "${RED}  未找到 /etc/ufw/before.rules，无法切换 Ping${NC}"
+            else
+              # 备份到 /tmp（重启自动清理，不在 /etc/ufw 残留文件）
+              cp /etc/ufw/before.rules /tmp/ufw-before.rules.bak.$SECONDS 2>/dev/null
+              if sed -i 's/\(--icmp-type echo-request -j \)ACCEPT/\1DROP/' /etc/ufw/before.rules 2>/dev/null && grep -q -- '--icmp-type echo-request -j DROP' /etc/ufw/before.rules; then
+                if [ -f /etc/ufw/before6.rules ]; then
+                  cp /etc/ufw/before6.rules /tmp/ufw-before6.rules.bak.$SECONDS 2>/dev/null
+                  sed -i 's/\(--icmp-type echo-request -j \)ACCEPT/\1DROP/' /etc/ufw/before6.rules 2>/dev/null
+                fi
+                ufw reload >/dev/null 2>&1
+                echo -e "${GREEN}  已禁止 ping${NC}"
+              else
+                echo -e "${RED}  修改 before.rules 失败，未生效${NC}"
+              fi
             fi
-            ufw reload >/dev/null 2>&1
-            echo -e "${GREEN}  已禁止 ping${NC}"
           else
             echo "  已取消"
           fi
         fi
         read -p "  按回车继续..."
         ;;
-      6)
+      8)
         if confirm "确认重置默认策略 (入站拒绝/出站允许)?"; then
           echo -e "${YELLOW}  重置默认策略为: 入站拒绝 / 出站允许${NC}"
           ufw default deny incoming
           ufw default allow outgoing
           # 重置时同时恢复 Ping 允许（echo-request 改回 ACCEPT，v4+v6）
-          sed -i 's/\(--icmp-type echo-request -j \)DROP/\1ACCEPT/' /etc/ufw/before.rules
-          [ -f /etc/ufw/before6.rules ] && sed -i 's/\(--icmp-type echo-request -j \)DROP/\1ACCEPT/' /etc/ufw/before6.rules
+          if [ ! -f /etc/ufw/before.rules ]; then
+            echo -e "${RED}  未找到 /etc/ufw/before.rules，Ping 状态可能无法恢复${NC}"
+          else
+            sed -i 's/\(--icmp-type echo-request -j \)DROP/\1ACCEPT/' /etc/ufw/before.rules 2>/dev/null
+            [ -f /etc/ufw/before6.rules ] && sed -i 's/\(--icmp-type echo-request -j \)DROP/\1ACCEPT/' /etc/ufw/before6.rules 2>/dev/null
+          fi
           ufw reload >/dev/null 2>&1
           rm -f /tmp/ufw-before*.bak.* 2>/dev/null
           echo -e "${GREEN}  默认策略已重置 (进站全封，出站全开，Ping 已恢复允许)${NC}"
+        else
+          echo "  已取消"
+        fi
+        read -p "  按回车继续..."
+        ;;
+      9)
+        echo -e "${RED}[!] 卸载防火墙将关闭 ufw 并删除全部配置，所有端口将暴露${NC}"
+        echo -en "${YELLOW}  输入 yes 确认: ${NC}"
+        read -r ans
+        if [ "$ans" = "yes" ]; then
+          echo -e "${YELLOW}  关闭防火墙...${NC}"
+          ufw --force disable >/dev/null 2>&1
+          echo -e "${YELLOW}  卸载 ufw 软件包并清除配置...${NC}"
+          apt remove --purge -y ufw >/dev/null 2>&1
+          rm -rf /etc/ufw /etc/default/ufw /var/log/ufw.log* 2>/dev/null
+          echo -e "${GREEN}  防火墙已卸载，系统已恢复无防火墙状态 (iptables 默认放行)${NC}"
         else
           echo "  已取消"
         fi
@@ -1428,6 +1572,19 @@ sys_ufw() {
 }
 
 # ---------- 10. SOCKS5 代理 ----------
+# 规范化代理目标：IPv6 地址自动加方括号 (IPv4/域名原样返回)
+norm_proxy_host() {
+  local t="$1"
+  case "$t" in
+    *:*)  # 含冒号 = IPv6，去掉已有方括号后统一加
+      t="${t#[}"
+      t="${t%]}"
+      echo "[$t]"
+      ;;
+    *) echo "$t" ;;
+  esac
+}
+
 sys_proxy() {
   local env_file="/tmp/proxy.sh"
   while true; do
@@ -1441,7 +1598,10 @@ sys_proxy() {
       if [ -n "$ALL_PROXY" ]; then
         echo -e "  当前状态: ${GREEN}已启用 (临时，重启后失效)${NC}"
         echo -e "  代理类型: ${ALL_PROXY%%://*}"
-        echo -e "  代理地址: ${ALL_PROXY#*://}"
+        # 地址脱敏：user:pass@ → ***@，避免泄露密码
+        local proxy_disp
+        proxy_disp=$(printf '%s' "${ALL_PROXY#*://}" | sed 's#[^/@]*@#***@#')
+        echo -e "  代理地址: $proxy_disp"
         # 测试连接
         echo -e "  正在检测代理连接...${NC}"
         local_ip=$(curl -s --connect-timeout 5 https://myip.ipip.net 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+')
@@ -1469,16 +1629,33 @@ sys_proxy() {
       1)
         read -p "  输入代理 IP 或域名: " proxy_ip
         read -p "  输入代理端口 (1-65535，如 1080): " proxy_port
+        # 用户名密码 (无认证直接回车跳过)
+        read -p "  输入代理用户名 (无认证直接回车): " proxy_user
+        proxy_pass=""
+        if [ -n "$proxy_user" ]; then
+          read -p "  输入代理密码 (留空则无密码): " proxy_pass
+        fi
         # 校验端口
         if ! echo "$proxy_port" | grep -qE '^[0-9]+$' || [ "$proxy_port" -lt 1 ] || [ "$proxy_port" -gt 65535 ]; then
           echo -e "${RED}  端口无效 (必须是 1-65535 的数字)${NC}"
           read -p "  按回车继续..."
-        # 校验 IP/域名 (简单格式校验，允许域名)
-        elif ! echo "$proxy_ip" | grep -qE '^[a-zA-Z0-9.-]+$'; then
+        # 校验 IP/域名 (允许 IPv4/IPv6/域名，IPv6 可带方括号；用 tr 过滤非法字符)
+        elif [ -n "$(printf '%s' "$proxy_ip" | tr -d 'a-zA-Z0-9.:[]-')" ]; then
           echo -e "${RED}  IP/域名格式无效${NC}"
           read -p "  按回车继续..."
+        # 校验用户名密码不含 URL 特殊字符 (@ : / 空格等)
+        elif [ -n "$proxy_user" ] && ! echo "${proxy_user}${proxy_pass}" | grep -qE '^[a-zA-Z0-9._%-]*$'; then
+          echo -e "${RED}  用户名/密码包含非法字符 (@ : / 空格等)${NC}"
+          read -p "  按回车继续..."
         else
-          proxy_url="socks5://${proxy_ip}:${proxy_port}"
+          proxy_host=$(norm_proxy_host "$proxy_ip")
+          if [ -n "$proxy_user" ]; then
+            proxy_url="socks5://${proxy_user}:${proxy_pass}@${proxy_host}:${proxy_port}"
+            proxy_disp="socks5://${proxy_user}:***@${proxy_host}:${proxy_port}"
+          else
+            proxy_url="socks5://${proxy_host}:${proxy_port}"
+            proxy_disp="$proxy_url"
+          fi
           echo -e "${YELLOW}  正在测试代理连接...${NC}"
           curl -x "$proxy_url" -s --connect-timeout 5 https://www.baidu.com >/dev/null 2>&1
           curl_ret=$?
@@ -1492,12 +1669,12 @@ export HTTPS_PROXY="$proxy_url"
 export ALL_PROXY="$proxy_url"
 EOF
             echo -e "${GREEN}  代理连接成功，已保存${NC}"
-            echo -e "${GREEN}  SOCKS5 代理已设置: $proxy_url${NC}"
+            echo -e "${GREEN}  SOCKS5 代理已设置: $proxy_disp${NC}"
             echo -e "${YELLOW}  临时生效，重启后自动失效${NC}"
             echo -e "${YELLOW}  当前终端执行: source $env_file${NC}"
           else
             echo -e "${RED}  代理连接失败 (错误码: $curl_ret)，未保存${NC}"
-            echo -e "${RED}  请检查 IP、端口是否正确，代理是否已启动${NC}"
+            echo -e "${RED}  请检查 IP、端口、用户名密码是否正确，代理是否已启动${NC}"
           fi
           read -p "  按回车继续..."
         fi
@@ -1505,16 +1682,33 @@ EOF
       2)
         read -p "  输入代理 IP 或域名: " proxy_ip
         read -p "  输入代理端口 (1-65535，如 7890): " proxy_port
+        # 用户名密码 (无认证直接回车跳过)
+        read -p "  输入代理用户名 (无认证直接回车): " proxy_user
+        proxy_pass=""
+        if [ -n "$proxy_user" ]; then
+          read -p "  输入代理密码 (留空则无密码): " proxy_pass
+        fi
         # 校验端口
         if ! echo "$proxy_port" | grep -qE '^[0-9]+$' || [ "$proxy_port" -lt 1 ] || [ "$proxy_port" -gt 65535 ]; then
           echo -e "${RED}  端口无效 (必须是 1-65535 的数字)${NC}"
           read -p "  按回车继续..."
-        # 校验 IP/域名
-        elif ! echo "$proxy_ip" | grep -qE '^[a-zA-Z0-9.-]+$'; then
+        # 校验 IP/域名 (允许 IPv4/IPv6/域名，IPv6 可带方括号；用 tr 过滤非法字符)
+        elif [ -n "$(printf '%s' "$proxy_ip" | tr -d 'a-zA-Z0-9.:[]-')" ]; then
           echo -e "${RED}  IP/域名格式无效${NC}"
           read -p "  按回车继续..."
+        # 校验用户名密码不含 URL 特殊字符 (@ : / 空格等)
+        elif [ -n "$proxy_user" ] && ! echo "${proxy_user}${proxy_pass}" | grep -qE '^[a-zA-Z0-9._%-]*$'; then
+          echo -e "${RED}  用户名/密码包含非法字符 (@ : / 空格等)${NC}"
+          read -p "  按回车继续..."
         else
-          proxy_url="http://${proxy_ip}:${proxy_port}"
+          proxy_host=$(norm_proxy_host "$proxy_ip")
+          if [ -n "$proxy_user" ]; then
+            proxy_url="http://${proxy_user}:${proxy_pass}@${proxy_host}:${proxy_port}"
+            proxy_disp="http://${proxy_user}:***@${proxy_host}:${proxy_port}"
+          else
+            proxy_url="http://${proxy_host}:${proxy_port}"
+            proxy_disp="$proxy_url"
+          fi
           echo -e "${YELLOW}  正在测试代理连接...${NC}"
           curl -x "$proxy_url" -s --connect-timeout 5 https://www.baidu.com >/dev/null 2>&1
           curl_ret=$?
@@ -1528,12 +1722,12 @@ export HTTPS_PROXY="$proxy_url"
 export ALL_PROXY="$proxy_url"
 EOF
             echo -e "${GREEN}  代理连接成功，已保存${NC}"
-            echo -e "${GREEN}  HTTP 代理已设置: $proxy_url${NC}"
+            echo -e "${GREEN}  HTTP 代理已设置: $proxy_disp${NC}"
             echo -e "${YELLOW}  临时生效，重启后自动失效${NC}"
             echo -e "${YELLOW}  当前终端执行: source $env_file${NC}"
           else
             echo -e "${RED}  代理连接失败 (错误码: $curl_ret)，未保存${NC}"
-            echo -e "${RED}  请检查 IP、端口是否正确，代理是否已启动${NC}"
+            echo -e "${RED}  请检查 IP、端口、用户名密码是否正确，代理是否已启动${NC}"
           fi
           read -p "  按回车继续..."
         fi
@@ -2058,15 +2252,22 @@ sys_packages() {
 }
 
 # 流媒体检测辅助: $1=平台名 $2=URL $3=CN重定向检查(1/0) $4=地区不支持关键词(可空)
-# 结果追加到全局变量 MEDIA_OUT，检测完统一输出
+# 检测完实时输出单行结果（配合 media_print），不累积
 # 单次请求 + 收紧超时，避免拖慢小机型；仅需状态码的平台零内容下载
+# 流媒体/AI 检测结果实时输出：清除"正在加载"行 → 打印结果 → 重新显示"正在加载"
+media_print() {
+  printf '\r\033[K'
+  echo -e "  $1: $2"
+  echo -en "${YELLOW}  正在加载...${NC}"
+}
+
 media_check() {
   local name="$1" url="$2" cnchk="$3" unavail="$4"
   local ua="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
   local code="" html=""
   # 全局期限保护：整组检测限时，到期未测项快速跳过（防个别接口异常拖死整个模块）
   if [ -n "$NET_DEADLINE" ] && [ "$SECONDS" -ge "$NET_DEADLINE" ]; then
-    MEDIA_OUT+="  $name: ${YELLOW}超时跳过${NC}"$'\n'
+    media_print "$name" "${YELLOW}超时跳过${NC}"
     return
   fi
   if [ "$cnchk" = "1" ] || [ -n "$unavail" ]; then
@@ -2084,26 +2285,26 @@ media_check() {
   [ -z "$code" ] && code="000"
   case "$code" in
     000)
-      MEDIA_OUT+="  $name: ${RED}无法访问${NC}"$'\n'
+      media_print "$name" "${RED}无法访问${NC}"
       ;;
     200|201|202|204|301|302|303|307|308)
       if [ -n "$html" ]; then
         if [ "$cnchk" = "1" ] && echo "$html" | grep -q "www.google.cn"; then
-          MEDIA_OUT+="  $name: ${YELLOW}CN (被重定向)${NC}"$'\n'
+          media_print "$name" "${YELLOW}CN (被重定向)${NC}"
           return
         fi
         if [ -n "$unavail" ] && echo "$html" | grep -qi "$unavail"; then
-          MEDIA_OUT+="  $name: ${YELLOW}地区不支持${NC}"$'\n'
+          media_print "$name" "${YELLOW}地区不支持${NC}"
           return
         fi
       fi
-      MEDIA_OUT+="  $name: ${GREEN}可访问${NC}"$'\n'
+      media_print "$name" "${GREEN}可访问${NC}"
       ;;
     403)
-      MEDIA_OUT+="  $name: ${YELLOW}被拦截 (HTTP 403)${NC}"$'\n'
+      media_print "$name" "${YELLOW}被拦截 (HTTP 403)${NC}"
       ;;
     *)
-      MEDIA_OUT+="  $name: ${RED}不可访问 (HTTP $code)${NC}"$'\n'
+      media_print "$name" "${RED}不可访问 (HTTP $code)${NC}"
       ;;
   esac
 }
@@ -2131,6 +2332,20 @@ get_pub_ip() {
   fi
 }
 
+# 获取出口 IPv6：仅走 IPv6 出站 (-6 强制)，9 接口轮询；机器无 IPv6 时连接失败自然返回空
+get_pub_ip6() {
+  PUB_IP6=""
+  local api start
+  start=$SECONDS
+  for api in "https://api6.ipify.org" "https://ipv6.icanhazip.com" "https://ifconfig.co" \
+    "https://6.ipinfo.io" "https://v6.ident.me" "https://ipv6-test.com/api/myip.php" \
+    "https://ifconfig.me/ip" "https://ip6.seeip.org" "https://api.ip.sb/ip"; do
+    [ $((SECONDS - start)) -ge 10 ] && break
+    PUB_IP6=$(curl -6 -s --noproxy '*' --connect-timeout 3 --max-time 5 "$api" 2>/dev/null | grep -oE '([0-9a-fA-F]{0,4}:){2,}[0-9a-fA-F:]+' | head -1 | tr -d '\r')
+    [ -n "$PUB_IP6" ] && break
+  done
+}
+
 # 出口 IP 检测 (多接口轮询，任一成功即返回，避免单接口失效)
 sys_net() {
   clear
@@ -2144,11 +2359,16 @@ sys_net() {
   # 清除"正在加载"提示行
   printf '\r\033[K'
   if [ -z "$ip" ]; then
-    echo -e "${RED}  获取出口 IP 失败，请检查网络${NC}"
+    echo -e "${RED}  获取出口 IPv4 失败，请检查网络${NC}"
     read -p "  按回车返回主菜单..."
     return
   fi
-  echo -e "  出口 IP: ${GREEN}$ip${NC}"
+  echo -e "  出口 IPv4: ${GREEN}$ip${NC}"
+  # 出口 IPv6 (仅走 IPv6 出站接口，无 IPv6 时自然跳过)
+  local ip6
+  get_pub_ip6
+  ip6="$PUB_IP6"
+  [ -n "$ip6" ] && echo -e "  出口 IPv6: ${GREEN}$ip6${NC}"
   # 地理位置与 ISP 解析
   local country city isp org asn
   country=$(echo "$geo" | grep -oE '"country":"[^"]*"' | cut -d'"' -f4)
@@ -2161,11 +2381,10 @@ sys_net() {
   [ -n "$isp" ] && echo "  ISP: $isp"
   [ -n "$org" ] && echo "  组织: $org"
   [ -n "$asn" ] && echo "  ASN: $asn"
-  # 流媒体检测（整组限时 20 秒，超时项跳过，防卡死）
+  # 流媒体检测（整组限时 20 秒，超时项跳过，检测出一个显示一个）
   echo ""
   echo -e "${YELLOW}-- 流媒体 --${NC}"
   echo -en "${YELLOW}  正在加载...${NC}"
-  MEDIA_OUT=""
   NET_DEADLINE=$((SECONDS + 20))
   media_check "YouTube" "https://www.youtube.com/premium" 1 ""
   media_check "Netflix" "https://www.netflix.com/title/80018499" 0 "not available in your"
@@ -2174,14 +2393,12 @@ sys_net() {
   media_check "Apple TV+" "https://tv.apple.com/" 0 ""
   media_check "Disney+" "https://www.disneyplus.com/" 0 ""
   media_check "Amazon Prime" "https://www.primevideo.com/" 0 ""
-  # 清除"正在加载"提示行并输出结果
+  # 清除最后一行"正在加载"提示
   printf '\r\033[K'
-  echo -e "${MEDIA_OUT%$'\n'}"
-  # AI 检测（整组限时 18 秒，超时项跳过，防卡死）
   echo ""
+  # AI 检测（整组限时 18 秒，超时项跳过，检测出一个显示一个）
   echo -e "${YELLOW}-- AI --${NC}"
   echo -en "${YELLOW}  正在加载...${NC}"
-  MEDIA_OUT=""
   NET_DEADLINE=$((SECONDS + 18))
   media_check "ChatGPT" "https://chatgpt.com" 0 ""
   media_check "Claude" "https://claude.ai" 0 ""
@@ -2189,9 +2406,8 @@ sys_net() {
   media_check "Grok" "https://grok.com" 0 ""
   media_check "DeepSeek" "https://chat.deepseek.com" 0 ""
   media_check "豆包" "https://www.doubao.com" 0 ""
-  # 清除"正在加载"提示行并输出结果
+  # 清除最后一行"正在加载"提示
   printf '\r\033[K'
-  echo -e "${MEDIA_OUT%$'\n'}"
   echo ""
   read -p "  按回车返回主菜单..."
 }
@@ -2207,22 +2423,26 @@ ping_action() {
       while read -r -t 0; do read -r; done 2>/dev/null
     fi
     echo "  ──────────────────────────────────────"
-    echo -e "   ${GREEN}1${NC}) Ping 测试"
-    echo -e "   ${GREEN}2${NC}) 丢包测试"
-    echo -e "   ${GREEN}3${NC}) 自定义 Ping"
-    echo -e "   ${GREEN}4${NC}) 自定义丢包测试"
-    echo -e "   ${GREEN}5${NC}) Globalping"
+    echo -e "   ${GREEN}1${NC}) IPv4 Ping"
+    echo -e "   ${GREEN}2${NC}) IPv6 Ping"
+    echo -e "   ${GREEN}3${NC}) IPv4 丢包测试"
+    echo -e "   ${GREEN}4${NC}) IPv6 丢包测试"
+    echo -e "   ${GREEN}5${NC}) 自定义 Ping"
+    echo -e "   ${GREEN}6${NC}) 自定义丢包测试"
+    echo -e "   ${GREEN}7${NC}) Globalping"
     echo -e "   ${GREEN}0${NC}) 返回主菜单"
     echo "  ──────────────────────────────────────"
     echo ""
     while true; do
       read -p "  请输入选项: " choice
       case "$choice" in
-        1) ping_both; break ;;
-        2) loss_both; break ;;
-        3) ping_custom; break ;;
-        4) ping_custom_loss; break ;;
-        5) ping_global; break ;;
+        1) ping_both4; break ;;
+        2) ping_both6; break ;;
+        3) loss_both4; break ;;
+        4) loss_both6; break ;;
+        5) ping_custom; break ;;
+        6) ping_custom_loss; break ;;
+        7) ping_global; break ;;
         0) return 0 ;;
         *) echo -e "${RED}  无效选项，请重新输入${NC}" ;;
       esac
@@ -2348,23 +2568,159 @@ ping_intl_loss() {
   echo ""
 }
 
-# 整合 Ping 测试：依次测国内、国际，各测 10 次实时显示
-ping_both() {
+# 国内 IPv6 丢包测试：常用国内官方域名各 ping 100 次（1% 粒度），实时显示丢包率
+ping_cn_loss6() {
+  echo -e "${YELLOW}-- 国内 IPv6 丢包检测 --${NC}"
+  local sites=("百度:www.baidu.com" "腾讯:www.qq.com" "淘宝:www.taobao.com" "B站:www.bilibili.com" "抖音:www.douyin.com")
+  local s name d out loss lpct w i ch code
+  echo -en "${YELLOW}  正在加载...${NC}"
+  for s in "${sites[@]}"; do
+    name="${s%%:*}"
+    d="${s##*:}"
+    # 按显示宽度对齐（中文/全角按 2 列，纯 bash 计算，兼容 mawk/gawk），统一补到 6 列
+    w=0
+    for ((i=0; i<${#name}; i++)); do
+      ch="${name:i:1}"
+      printf -v code "%d" "'$ch" 2>/dev/null
+      (( code > 127 )) && w=$((w+2)) || w=$((w+1))
+    done
+    while (( w < 6 )); do name+=" "; w=$((w+1)); done
+    out=$(timeout 30 ping -6 -c 100 -i 0.2 -W 1 "$d" 2>/dev/null)
+    loss=$(printf '%s\n' "$out" | grep -oE '[0-9]+% packet loss' | head -1)
+    printf '\r\033[K'
+    if [ -n "$loss" ]; then
+      lpct=${loss/ packet loss/}
+      if [ "$lpct" = "0%" ]; then
+        printf "  %s${GREEN}丢包 %s${NC}\n" "$name" "$lpct"
+      else
+        printf "  %s${YELLOW}丢包 %s${NC}\n" "$name" "$lpct"
+      fi
+    else
+      printf "  %s${RED}无法连通${NC}\n" "$name"
+    fi
+    echo -en "${YELLOW}  正在加载...${NC}"
+  done
+  printf '\r\033[K'
+  echo ""
+}
+
+# 国际 IPv6 丢包测试：常用国际站点各 ping 100 次（1% 粒度），实时显示丢包率
+ping_intl_loss6() {
+  echo -e "${YELLOW}-- 国际 IPv6 丢包检测 --${NC}"
+  local sites=("Google:www.google.com" "Cloudflare:www.cloudflare.com" "Wikipedia:wikipedia.org" "YouTube:www.youtube.com" "Microsoft:www.microsoft.com")
+  local s name d out loss lpct
+  echo -en "${YELLOW}  正在加载...${NC}"
+  for s in "${sites[@]}"; do
+    name="${s%%:*}"
+    d="${s##*:}"
+    out=$(timeout 30 ping -6 -c 100 -i 0.2 -W 1 "$d" 2>/dev/null)
+    loss=$(printf '%s\n' "$out" | grep -oE '[0-9]+% packet loss' | head -1)
+    printf '\r\033[K'
+    if [ -n "$loss" ]; then
+      lpct=${loss/ packet loss/}
+      if [ "$lpct" = "0%" ]; then
+        printf "  %-12s ${GREEN}丢包 %s${NC}\n" "$name" "$lpct"
+      else
+        printf "  %-12s ${YELLOW}丢包 %s${NC}\n" "$name" "$lpct"
+      fi
+    else
+      printf "  %-12s ${RED}无法连通${NC}\n" "$name"
+    fi
+    echo -en "${YELLOW}  正在加载...${NC}"
+  done
+  printf '\r\033[K'
+  echo ""
+}
+
+# 国内 IPv6 Ping：对常用国内官方域名各 ping 10 次取平均，实时显示 (需机器有 IPv6)
+# 注意：大厂 IPv6 多挂在 www 子域，主域无 AAAA，故统一用 www 前缀
+ping_cn6() {
+  echo -e "${YELLOW}-- 国内 IPv6 延迟检测 --${NC}"
+  local sites=("百度:www.baidu.com" "腾讯:www.qq.com" "淘宝:www.taobao.com" "B站:www.bilibili.com" "抖音:www.douyin.com")
+  local s name d out avg loss w i ch code
+  echo -en "${YELLOW}  正在加载...${NC}"
+  for s in "${sites[@]}"; do
+    name="${s%%:*}"
+    d="${s##*:}"
+    # 按显示宽度对齐（中文/全角按 2 列，纯 bash 计算，兼容 mawk/gawk），统一补到 6 列
+    w=0
+    for ((i=0; i<${#name}; i++)); do
+      ch="${name:i:1}"
+      printf -v code "%d" "'$ch" 2>/dev/null
+      (( code > 127 )) && w=$((w+2)) || w=$((w+1))
+    done
+    while (( w < 6 )); do name+=" "; w=$((w+1)); done
+    out=$(timeout 8 ping -6 -c 10 -i 0.2 -W 1 "$d" 2>/dev/null)
+    avg=$(printf '%s\n' "$out" | grep -oE '= [0-9.]+/[0-9.]+/[0-9.]+' | head -1 | sed 's/= //' | cut -d'/' -f2)
+    printf '\r\033[K'
+    if [ -n "$avg" ]; then
+      printf "  %s${GREEN}延迟 %sms${NC}\n" "$name" "$avg"
+    else
+      printf "  %s${RED}无法连通${NC}\n" "$name"
+    fi
+    echo -en "${YELLOW}  正在加载...${NC}"
+  done
+  printf '\r\033[K'
+  echo ""
+}
+
+# 国际 IPv6 Ping：对常用国际站点各 ping 10 次取平均，实时显示 (需机器有 IPv6)
+# GitHub 无 AAAA 记录不支持 IPv6，用 Wikipedia 替代
+ping_intl6() {
+  echo -e "${YELLOW}-- 国际 IPv6 延迟检测 --${NC}"
+  local sites=("Google:www.google.com" "Cloudflare:www.cloudflare.com" "Wikipedia:wikipedia.org" "YouTube:www.youtube.com" "Microsoft:www.microsoft.com")
+  local s name d out avg loss
+  echo -en "${YELLOW}  正在加载...${NC}"
+  for s in "${sites[@]}"; do
+    name="${s%%:*}"
+    d="${s##*:}"
+    out=$(timeout 8 ping -6 -c 10 -i 0.2 -W 1 "$d" 2>/dev/null)
+    avg=$(printf '%s\n' "$out" | grep -oE '= [0-9.]+/[0-9.]+/[0-9.]+' | head -1 | sed 's/= //' | cut -d'/' -f2)
+    printf '\r\033[K'
+    if [ -n "$avg" ]; then
+      printf "  %-12s ${GREEN}延迟 %sms${NC}\n" "$name" "$avg"
+    else
+      printf "  %-12s ${RED}无法连通${NC}\n" "$name"
+    fi
+    echo -en "${YELLOW}  正在加载...${NC}"
+  done
+  printf '\r\033[K'
+  echo ""
+}
+
+# 整合 IPv4 Ping：依次测国内、国际，各测 10 次实时显示
+ping_both4() {
   clear
   echo -e "${CYAN}────────── Ping 测试 ──────────${NC}"
   ping_cn
   ping_intl
 }
 
-# 整合丢包测试：依次测国内、国际，各测 100 次实时显示丢包率
-loss_both() {
+# 整合 IPv6 Ping：依次测国内、国际，各测 10 次实时显示
+ping_both6() {
+  clear
+  echo -e "${CYAN}────────── Ping 测试 ──────────${NC}"
+  ping_cn6
+  ping_intl6
+}
+
+# 整合 IPv4 丢包测试：依次测国内、国际，各测 100 次实时显示丢包率
+loss_both4() {
   clear
   echo -e "${CYAN}────────── Ping 测试 ──────────${NC}"
   ping_cn_loss
   ping_intl_loss
 }
 
-# 自定义 Ping：输入 IP 或域名，ping 10 次取平均
+# 整合 IPv6 丢包测试：依次测国内、国际，各测 100 次实时显示丢包率
+loss_both6() {
+  clear
+  echo -e "${CYAN}────────── Ping 测试 ──────────${NC}"
+  ping_cn_loss6
+  ping_intl_loss6
+}
+
+# 自定义 Ping：输入 IP 或域名，ping 10 次取平均；输入 IPv6 地址自动识别
 ping_custom() {
   clear
   echo -e "${CYAN}────────── Ping 测试 ──────────${NC}"
@@ -2376,7 +2732,11 @@ ping_custom() {
     return
   fi
   echo -en "${YELLOW}  正在加载...${NC}"
-  out=$(timeout 8 ping -c 10 -i 0.2 -W 1 "$target" 2>/dev/null)
+  if echo "$target" | grep -q ':'; then
+    out=$(timeout 8 ping -6 -c 10 -i 0.2 -W 1 "$target" 2>/dev/null)
+  else
+    out=$(timeout 8 ping -c 10 -i 0.2 -W 1 "$target" 2>/dev/null)
+  fi
   avg=$(printf '%s\n' "$out" | grep -oE '= [0-9.]+/[0-9.]+/[0-9.]+' | head -1 | sed 's/= //' | cut -d'/' -f2)
   printf '\r\033[K'
   if [ -n "$avg" ]; then
@@ -2387,7 +2747,7 @@ ping_custom() {
   echo ""
 }
 
-# 自定义丢包测试：输入 IP 或域名，ping 100 次（1% 粒度）
+# 自定义丢包测试：输入 IP 或域名，ping 100 次（1% 粒度）；输入 IPv6 地址自动识别
 ping_custom_loss() {
   clear
   echo -e "${CYAN}────────── Ping 测试 ──────────${NC}"
@@ -2399,7 +2759,11 @@ ping_custom_loss() {
     return
   fi
   echo -en "${YELLOW}  正在加载...${NC}"
-  out=$(timeout 30 ping -c 100 -i 0.2 -W 1 "$target" 2>/dev/null)
+  if echo "$target" | grep -q ':'; then
+    out=$(timeout 30 ping -6 -c 100 -i 0.2 -W 1 "$target" 2>/dev/null)
+  else
+    out=$(timeout 30 ping -c 100 -i 0.2 -W 1 "$target" 2>/dev/null)
+  fi
   loss=$(printf '%s\n' "$out" | grep -oE '[0-9]+% packet loss' | head -1)
   printf '\r\033[K'
   if [ -n "$loss" ]; then
@@ -2438,12 +2802,12 @@ glob_continent_name() {
   esac
 }
 
-# 从指定国家节点检测本机 IP（limit 5，不足自动取实际数量）
+# 从指定国家节点检测本机 IP（limit 5，不足自动取实际数量）$3=地址类型标签(IPv4/IPv6)
 glob_test_country() {
-  local ip="$1" cc="$2" resp mid res raw avg loss_pct city w i ch code
+  local ip="$1" cc="$2" label="$3" resp mid res raw avg loss_pct city w i ch code
   clear
   echo -e "${CYAN}────────── Globalping ──────────${NC}"
-  echo -e "  本机 IP: ${GREEN}$ip${NC}"
+  echo -e "  测试目标: ${GREEN}$ip${NC} (${label:-IPv4})"
   echo -e "${YELLOW}-- 正在从 $(glob_country_name "$cc") 节点检测 --${NC}"
   resp=$(curl -s --noproxy '*' --connect-timeout 10 --max-time 20 -X POST "https://api.globalping.io/v1/measurements" -H "Content-Type: application/json" -d "{\"type\":\"ping\",\"target\":\"$ip\",\"limit\":5,\"locations\":[{\"country\":\"$cc\"}]}")
   mid=$(printf '%s' "$resp" | grep -oE '"id"[[:space:]]*:[[:space:]]*"[^"]+"' | head -1 | cut -d'"' -f4)
@@ -2498,10 +2862,10 @@ glob_test_country() {
   echo ""
 }
 
-# 某大洲的国家选择菜单
+# 某大洲的国家选择菜单（ip=出口IPv4, ip6=出口IPv6, 双栈时测试前询问 4/6）
 glob_country_menu() {
-  local cont="$1" ip="$2" data="$3"
-  local cc_list=() cnt_list=() line cnt cc gsel i
+  local cont="$1" ip="$2" ip6="$3" data="$4"
+  local cc_list=() cnt_list=() line cnt cc gsel i tv
   while IFS= read -r line; do
     set -- $line
     cnt=$1; cc=${2#*:}
@@ -2510,7 +2874,8 @@ glob_country_menu() {
   while true; do
     clear
     echo -e "${CYAN}────────── Globalping ──────────${NC}"
-    echo -e "  本机 IP: ${GREEN}$ip${NC}"
+    [ -n "$ip" ] && echo -e "  本机 IPv4: ${GREEN}$ip${NC}"
+    [ -n "$ip6" ] && echo -e "  本机 IPv6: ${GREEN}$ip6${NC}"
     echo ""
     echo -e "${YELLOW}-- $(glob_continent_name "$cont") --${NC}"
     echo "  ──────────────────────────────────────"
@@ -2523,7 +2888,23 @@ glob_country_menu() {
     read -p "  请输入选项: " gsel
     if [ "$gsel" = "0" ]; then return 0; fi
     if [ "$gsel" -ge 1 ] 2>/dev/null && [ "$gsel" -le "${#cc_list[@]}" ]; then
-      glob_test_country "$ip" "${cc_list[$((gsel-1))]}"
+      if [ -n "$ip" ] && [ -n "$ip6" ]; then
+        # 双栈：测试前询问测 IPv4 还是 IPv6
+        while true; do
+          echo ""
+          echo -en "  请选择测试目标 IPv4(${GREEN}4${NC}) 或 IPv6(${GREEN}6${NC}): "
+          read -r tv
+          case "$tv" in
+            4) glob_test_country "$ip" "${cc_list[$((gsel-1))]}" "IPv4"; break ;;
+            6) glob_test_country "$ip6" "${cc_list[$((gsel-1))]}" "IPv6"; break ;;
+            *) echo -e "${RED}  无效选项，请输入 4 或 6${NC}" ;;
+          esac
+        done
+      elif [ -n "$ip6" ]; then
+        glob_test_country "$ip6" "${cc_list[$((gsel-1))]}" "IPv6"
+      else
+        glob_test_country "$ip" "${cc_list[$((gsel-1))]}" "IPv4"
+      fi
       read -p "  按回车返回国家列表..."
     else
       echo -e "${RED}  无效选项，请重新输入${NC}"
@@ -2532,17 +2913,19 @@ glob_country_menu() {
   done
 }
 
-# Globalping：实时拉取官方国家列表 → 选大洲 → 选国家 → 从该国节点检测本机
+# Globalping：实时拉取官方国家列表 → 选大洲 → 选国家 → 从该国节点检测本机 (IPv4/IPv6)
 ping_global() {
-  local ip data conts c nc idx csel
+  local ip ip6 data conts c nc idx csel
   clear
   echo -e "${CYAN}────────── Globalping ──────────${NC}"
   echo -en "${YELLOW}  正在加载...${NC}"
   get_pub_ip
   ip="$PUB_IP"
-  if [ -z "$ip" ]; then
+  get_pub_ip6
+  ip6="$PUB_IP6"
+  if [ -z "$ip" ] && [ -z "$ip6" ]; then
     printf '\r\033[K'
-    echo -e "${RED}  获取本机 IP 失败，请检查网络${NC}"
+    echo -e "${RED}  获取出口 IPv4/IPv6 失败，请检查网络${NC}"
     echo ""
     read -p "  按回车返回主菜单..."
     return
@@ -2574,7 +2957,8 @@ ping_global() {
   while true; do
     clear
     echo -e "${CYAN}────────── Globalping ──────────${NC}"
-    echo -e "  本机 IP: ${GREEN}$ip${NC}"
+    [ -n "$ip" ] && echo -e "  本机 IPv4: ${GREEN}$ip${NC}"
+    [ -n "$ip6" ] && echo -e "  本机 IPv6: ${GREEN}$ip6${NC}"
     echo ""
     echo "  ──────────────────────────────────────"
     idx=1
@@ -2594,7 +2978,7 @@ ping_global() {
       return
     fi
     if [ "$csel" -ge 1 ] 2>/dev/null && [ "$csel" -le "${#conts[@]}" ]; then
-      glob_country_menu "${conts[$((csel-1))]}" "$ip" "$data" || return
+      glob_country_menu "${conts[$((csel-1))]}" "$ip" "$ip6" "$data" || return
     else
       echo -e "${RED}  无效选项，请重新输入${NC}"
       sleep 1
