@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================
-#  Easy 管理面板  v1.4
+#  Easy 管理面板  v1.5
 #  纯本地 bash · 零下载 · 零第三方
 #  启动:       e
 #  源码审查:   cat /usr/local/bin/e
@@ -8,11 +8,25 @@
 # ============================================
 
 RED='\033[0;31m'
-GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-BLUE='\033[1;34m'
 NC='\033[0m'
+
+# 主题（可在 Easy 脚本管理-设置脚本主题 中切换，持久化到脚本自身）：default/pink/eva/matrix/gold/mono
+THEME=default
+# 按主题键应用颜色（切换主题时立即生效；脚本加载时也调用一次）
+theme_apply() {
+  case "$1" in
+    pink)   TITLE='\033[1;38;5;211m'; GREEN='\033[1;38;5;222m' ;;   # 草莓熊：粉标题+奶黄选项
+    eva)    TITLE='\033[1;38;5;135m';  GREEN='\033[1;38;5;82m' ;;   # 初号机：EVA紫+荧光绿
+    matrix) TITLE='\033[1;38;5;46m';   GREEN='\033[0;38;5;120m' ;;  # 黑客帝国：矩阵绿+浅绿
+    gold)   TITLE='\033[1;38;5;178m';  GREEN='\033[1;38;5;229m' ;;  # 暗金：金标题+米色选项
+    mono)   TITLE='\033[1;37m';        GREEN='\033[0;37m' ;;        # 极简白：白标题+浅灰选项
+    *)      TITLE='\033[1;34m';        GREEN='\033[0;32m' ;;        # 默认：亮蓝+绿
+  esac
+}
+theme_apply "$THEME"
+
+APP_PAGE=10  # APPStore 每页显示行数（可在 APPStore 内修改，持久化到脚本自身）
 
 # 统一 y/n 确认 (红色 [!] 高亮前缀)
 # 用法: if confirm "要做的事"; then ...; fi
@@ -38,7 +52,7 @@ ORIG_HOSTNAME=""
 # ---------- 封面 ----------
 cover() {
   clear
-  printf '\033[1;34m'
+  printf "${TITLE}"
   cat <<'COVER'
 ▄▄▄▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄      ▄▄▄▄▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄   ▄▄▄▄▄
 █          █ █       ▀▀▄   █           █ █   █   █   █
@@ -50,8 +64,8 @@ cover() {
 █    ▀▀▀   █ █ ▀ █   █   █ █ ▀       ▀ █ █ ▀ ▀▀▀▀▄▄▀  
 ▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀   ▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀
 COVER
-  printf '\033[1;36m'
-  echo "                  E a s y 管 理 面 板  v1.4"
+  printf "${TITLE}"
+  echo "                  E a s y 管 理 面 板  v1.5"
   printf '\033[0m'
   echo ""
 }
@@ -69,7 +83,7 @@ menu() {
   echo -e "   ${GREEN}6${NC}) 端口状态"
   echo -e "   ${GREEN}7${NC}) 防火墙管理"
   echo -e "   ${GREEN}8${NC}) 文件管理"
-  echo -e "   ${GREEN}9${NC}) 软件管理"
+  echo -e "   ${GREEN}9${NC}) APPStore"
   echo -e "  ${GREEN}10${NC}) BBR 加速"
   echo ""
   echo -e "               ${GREEN}0${NC}) 退出"
@@ -81,7 +95,7 @@ menu() {
 # ---------- 1. 系统状态 ----------
 sys_status() {
   clear
-  echo -e "${CYAN}────────── 系统状态 ──────────${NC}"
+  echo -e "${TITLE}────────── 系统状态 ──────────${NC}"
   echo -e "${YELLOW}-- 系统信息 --${NC}"
   echo "  系统: $(. /etc/os-release && echo "$PRETTY_NAME")"
   echo "  内核: $(uname -r) | 架构: $(uname -m)"
@@ -151,7 +165,7 @@ fmt_size() {
 sys_clean() {
   while true; do
     clear
-    echo -e "${CYAN}────────── 清理垃圾 ──────────${NC}"
+    echo -e "${TITLE}────────── 清理垃圾 ──────────${NC}"
     echo ""
     echo "  ──────────────────────────────────────"
     echo -e "   ${GREEN}1${NC}) 清理磁盘垃圾"
@@ -171,7 +185,7 @@ sys_clean() {
 
 clean_disk() {
   clear
-  echo -e "${CYAN}────────── 清理磁盘垃圾 ──────────${NC}"
+  echo -e "${TITLE}────────── 清理磁盘垃圾 ──────────${NC}"
   echo -e "${YELLOW}  将清理: apt 孤儿包 / 下载缓存 / 旧日志 / 过期临时文件${NC}"
   echo -e "${YELLOW}  不影响: 配置、数据、已装软件${NC}"
   if ! confirm "确认开始清理磁盘垃圾?"; then
@@ -209,7 +223,7 @@ clean_disk() {
 
 clean_memory() {
   clear
-  echo -e "${CYAN}────────── 清理运行内存 ──────────${NC}"
+  echo -e "${TITLE}────────── 清理运行内存 ──────────${NC}"
   echo -e "${YELLOW}  将释放: 页缓存 / 目录项 / inode 缓存${NC}"
   echo -e "${YELLOW}  注意: 清理后系统会重新读磁盘，短暂变慢${NC}"
   echo ""
@@ -257,7 +271,7 @@ sys_apt_sources() {
   codename=$(. /etc/os-release && echo "$VERSION_CODENAME")
   while true; do
     clear
-    echo -e "${CYAN}────────── 软件源管理 ──────────${NC}"
+    echo -e "${TITLE}────────── 软件源管理 ──────────${NC}"
     echo -e "  系统: $(. /etc/os-release && echo "$PRETTY_NAME")"
     echo -e "  代号: ${codename}"
     echo ""
@@ -352,7 +366,7 @@ sys_apt_manual() {
   local src="/etc/apt/sources.list"
   while true; do
     clear
-    echo -e "${CYAN}────────── 手动管理源 ──────────${NC}"
+    echo -e "${TITLE}────────── 手动管理源 ──────────${NC}"
     echo -e "  文件: ${GREEN}${src}${NC}"
     echo ""
     if [ -f "$src" ]; then
@@ -510,7 +524,7 @@ swap_delete() {
 
 sys_swap() {
   clear
-  echo -e "${CYAN}────────── 虚拟内存设置 ──────────${NC}"
+  echo -e "${TITLE}────────── 虚拟内存设置 ──────────${NC}"
   swap_status
   echo ""
   # 完全没有虚拟内存：询问是否新建
@@ -526,7 +540,7 @@ sys_swap() {
   fi
   while true; do
     clear
-    echo -e "${CYAN}────────── 虚拟内存设置 ──────────${NC}"
+    echo -e "${TITLE}────────── 虚拟内存设置 ──────────${NC}"
     swap_status
     echo ""
     echo "  ──────────────────────────────────────"
@@ -554,7 +568,7 @@ sys_ssh_port() {
   [ -z "$cur_port" ] && cur_port=22
   while true; do
     clear
-    echo -e "${CYAN}────────── SSH 端口修改 ──────────${NC}"
+    echo -e "${TITLE}────────── SSH 端口修改 ──────────${NC}"
     echo ""
     echo -e "  当前 SSH 端口: ${GREEN}$cur_port${NC}"
     echo ""
@@ -665,7 +679,7 @@ sys_timezone() {
   while true; do
     clear
     cur=$(timedatectl show -p Timezone --value 2>/dev/null)
-    echo -e "${CYAN}────────── 设置时区 ──────────${NC}"
+    echo -e "${TITLE}────────── 设置时区 ──────────${NC}"
     echo -e "  当前时区: ${GREEN}${cur:-未知}${NC}"
     echo ""
     echo "  ──────────────────────────────────────"
@@ -714,7 +728,7 @@ sys_locale() {
   while true; do
     clear
     cur=$LANG
-    echo -e "${CYAN}────────── 设置语言 ──────────${NC}"
+    echo -e "${TITLE}────────── 设置语言 ──────────${NC}"
     echo -e "  当前语言: ${GREEN}${cur:-en_US.UTF-8}${NC}"
     echo ""
     echo "  ──────────────────────────────────────"
@@ -746,16 +760,62 @@ sys_locale() {
       0) return ;;
       *) continue ;;
     esac
+    if ! confirm "确认将系统语言设置为 $loc?"; then
+      continue
+    fi
     # 确保 locales 包已安装
     if ! command -v locale-gen >/dev/null 2>&1; then
       echo -e "${YELLOW}  未安装 locales，正在安装...${NC}"
       apt install -y locales >/dev/null 2>&1 || { echo -e "${RED}  安装失败，请检查网络${NC}"; read -p "  按回车继续..."; continue; }
     fi
-    # 确保该语言已生成
+    # 确保该语言已生成，生成后必须验证，失败不再静默
     if ! locale -a 2>/dev/null | grep -qi "${loc%.*}"; then
+      echo -e "${YELLOW}  正在生成语言数据: $loc ...${NC}"
+      # Debian 需先在 /etc/locale.gen 登记条目（注释行无效），否则 locale-gen 静默失败
+      if [ -f /etc/locale.gen ]; then
+        esc="${loc//./\\.}"
+        if ! grep -qE "^[[:space:]]*${esc}[[:space:]]" /etc/locale.gen 2>/dev/null; then
+          sed -i "s|^[[:space:]]*#[[:space:]]*\(${esc}[[:space:]]\)|\1|" /etc/locale.gen 2>/dev/null
+          grep -qE "^[[:space:]]*${esc}[[:space:]]" /etc/locale.gen 2>/dev/null || echo "$loc UTF-8" >> /etc/locale.gen 2>/dev/null
+        fi
+      fi
       locale-gen "$loc" >/dev/null 2>&1
+      if ! locale -a 2>/dev/null | grep -qi "${loc%.*}"; then
+        echo -e "${RED}  语言数据生成失败 ($loc)${NC}"
+        echo -e "${YELLOW}  可尝试手动执行: apt install -y locales && locale-gen $loc${NC}"
+        read -p "  按回车继续..."
+        continue
+      fi
     fi
-    update-locale LANG="$loc" >/dev/null 2>&1
+    # 写入 /etc/default/locale，失败必须报错
+    if ! update-locale LANG="$loc" >/dev/null 2>&1; then
+      echo -e "${RED}  update-locale 执行失败，请检查权限${NC}"
+      read -p "  按回车继续..."
+      continue
+    fi
+    if ! grep -q "^LANG=$loc" /etc/default/locale 2>/dev/null; then
+      echo "LANG=$loc" >> /etc/default/locale 2>/dev/null
+    fi
+    if ! grep -q "^LANG=$loc" /etc/default/locale 2>/dev/null; then
+      echo -e "${RED}  写入 /etc/default/locale 失败 (权限不足或磁盘只读)，未生效${NC}"
+      read -p "  按回车继续..."
+      continue
+    fi
+    # 同步写 /etc/environment（PAM 会话兜底，防止仅 default/locale 不生效）
+    sed -i '/^LANG=/d' /etc/environment 2>/dev/null
+    echo "LANG=$loc" >> /etc/environment 2>/dev/null
+    # 确保登录 shell 读取 /etc/default/locale（部分精简镜像缺失 lang.sh）
+    if [ ! -f /etc/profile.d/lang.sh ] || ! grep -q "default/locale" /etc/profile.d/lang.sh 2>/dev/null; then
+      cat > /etc/profile.d/lang.sh << 'LANGEOF'
+# 由 Easy 管理面板生成：登录 shell 读取系统语言
+if [ -r /etc/default/locale ]; then
+  . /etc/default/locale
+  export LANG
+  unset LC_CTYPE LC_NUMERIC LC_TIME LC_COLLATE LC_MONETARY LC_MESSAGES LC_PAPER LC_NAME LC_ADDRESS LC_TELEPHONE LC_MEASUREMENT LC_IDENTIFICATION LC_ALL 2>/dev/null
+fi
+LANGEOF
+      chmod 644 /etc/profile.d/lang.sh
+    fi
     echo -e "${GREEN}  语言已设置为: $loc (重连 SSH 后生效)${NC}"
     read -p "  按回车继续..."
   done
@@ -772,7 +832,7 @@ sys_hostname() {
   while true; do
     clear
     cur=$(cat /etc/hostname 2>/dev/null || echo "unknown")
-    echo -e "${CYAN}────────── 设置主机名 ──────────${NC}"
+    echo -e "${TITLE}────────── 设置主机名 ──────────${NC}"
     echo -e "  当前主机名: ${GREEN}${cur}${NC}"
     echo ""
     echo "  ──────────────────────────────────────"
@@ -816,7 +876,7 @@ sys_hostname() {
 sys_passwd() {
   while true; do
     clear
-    echo -e "${CYAN}────────── 设置登录密码 ──────────${NC}"
+    echo -e "${TITLE}────────── 设置登录密码 ──────────${NC}"
     echo ""
     echo "  ──────────────────────────────────────"
     echo -e "   ${GREEN}1${NC}) 修改 root 密码"
@@ -851,6 +911,61 @@ sys_passwd() {
   done
 }
 
+# 主题中文名
+theme_name() {
+  case "$1" in
+    pink) echo "草莓熊" ;;
+    eva) echo "初号机" ;;
+    matrix) echo "黑客帝国" ;;
+    gold) echo "暗金" ;;
+    mono) echo "极简白" ;;
+    *) echo "默认" ;;
+  esac
+}
+
+# 设置脚本主题
+sys_theme() {
+  local opt key name
+  while true; do
+    clear
+    echo -e "${TITLE}────────── 设置脚本主题 ──────────${NC}"
+    echo -e "  当前主题: ${GREEN}$(theme_name "$THEME")${NC}"
+    echo "  ──────────────────────────────────────"
+    echo -e "   ${GREEN}1${NC}) 默认"
+    echo -e "   ${GREEN}2${NC}) 草莓熊"
+    echo -e "   ${GREEN}3${NC}) 初号机"
+    echo -e "   ${GREEN}4${NC}) 黑客帝国"
+    echo -e "   ${GREEN}5${NC}) 暗金"
+    echo -e "   ${GREEN}6${NC}) 极简白"
+    echo -e "   ${GREEN}0${NC}) 返回"
+    echo "  ──────────────────────────────────────"
+    echo ""
+    read -p "  请输入选项: " opt
+    case "$opt" in
+      0) return ;;
+      1) key="default"; name="默认" ;;
+      2) key="pink"; name="草莓熊" ;;
+      3) key="eva"; name="初号机" ;;
+      4) key="matrix"; name="黑客帝国" ;;
+      5) key="gold"; name="暗金" ;;
+      6) key="mono"; name="极简白" ;;
+      *) continue ;;
+    esac
+    if confirm "确认切换到 ${name} 主题?"; then
+      if sed -i "s/^THEME=[a-z]*/THEME=$key/" "$SCRIPT_PATH" 2>/dev/null; then
+        THEME="$key"
+        theme_apply "$THEME"
+        echo -e "${GREEN}  已切换到 ${name} 主题${NC}"
+        GOTO_MAIN=1   # 切换成功后自动返回主菜单
+      else
+        echo -e "${RED}  写入失败，请检查脚本权限${NC}"
+      fi
+      read -p "  按回车返回..."
+      return
+    fi
+  done
+}
+
 sys_hotkey_inline() {
   self_path=$(readlink -f "$0")
   read -p "  输入新快捷键 (如 e、m，仅限字母数字): " new
@@ -875,7 +990,7 @@ sys_hotkey_inline() {
 sys_schedule_reboot() {
   while true; do
     clear
-    echo -e "${CYAN}────────── 定时重启 ──────────${NC}"
+    echo -e "${TITLE}────────── 定时重启 ──────────${NC}"
     echo ""
     if [ -f /etc/systemd/system/reboot.timer ]; then
       interval=$(grep -oE 'OnUnitActiveSec=[^ ]+' /etc/systemd/system/reboot.timer 2>/dev/null | cut -d= -f2)
@@ -948,7 +1063,7 @@ EOF
 
 sys_reboot() {
   clear
-  echo -e "${CYAN}────────── 重启服务器 ──────────${NC}"
+  echo -e "${TITLE}────────── 重启服务器 ──────────${NC}"
   echo -e "${YELLOW}  重启后 SSH 会断开，请稍等再重新连接${NC}"
   if confirm "确认重启服务器?"; then
     echo -e "${YELLOW}  服务器重启中...${NC}"
@@ -963,6 +1078,10 @@ sys_update() {
   if confirm "确认更新脚本?"; then
     echo -e "${YELLOW}  正在下载...${NC}"
     if curl -sL https://raw.githubusercontent.com/smallsmalldou/Easylinux/main/e -o "$SCRIPT_PATH" && chmod +x "$SCRIPT_PATH"; then
+      # 新版脚本主题默认为 default，更新后恢复当前主题
+      if [ -n "$THEME" ] && [ "$THEME" != "default" ]; then
+        sed -i "s/^THEME=default/THEME=$THEME/" "$SCRIPT_PATH" 2>/dev/null
+      fi
       echo -e "${GREEN}  更新完成，即将重启脚本...${NC}"
       sleep 1
       exec "$SCRIPT_PATH"
@@ -981,7 +1100,7 @@ sys_script_mgmt() {
     self_path="$SCRIPT_PATH"
     cur_name=$(basename "$self_path")
     clear
-    echo -e "${CYAN}────────── Easy 脚本管理 ──────────${NC}"
+    echo -e "${TITLE}────────── Easy 脚本管理 ──────────${NC}"
     echo ""
     echo -e "  当前启动快捷键: ${GREEN}${cur_name}${NC}"
     echo -e "${YELLOW}  更新: 将从 GitHub 下载最新版脚本覆盖当前版本${NC}"
@@ -991,16 +1110,18 @@ sys_script_mgmt() {
     echo ""
     echo "  ──────────────────────────────────────"
     echo -e "   ${GREEN}1${NC}) 设置脚本快捷键"
-    echo -e "   ${GREEN}2${NC}) 更新脚本"
-    echo -e "   ${GREEN}3${NC}) 卸载脚本"
+    echo -e "   ${GREEN}2${NC}) 设置脚本主题"
+    echo -e "   ${GREEN}3${NC}) 更新脚本"
+    echo -e "   ${GREEN}4${NC}) 卸载脚本"
     echo -e "   ${GREEN}0${NC}) 返回系统工具"
     echo "  ──────────────────────────────────────"
     echo ""
     read -p "  请输入选项: " opt
     case "$opt" in
       1) sys_hotkey_inline ;;
-      2) sys_update ;;
-      3) sys_uninstall ;;
+      2) sys_theme; [ "$GOTO_MAIN" = "1" ] && return ;;
+      3) sys_update ;;
+      4) sys_uninstall ;;
       0) return ;;
       *) ;;
     esac
@@ -1026,7 +1147,7 @@ sys_uninstall() {
 sys_netmode() {
   while true; do
     clear
-    echo -e "${CYAN}────────── 上网设置 ──────────${NC}"
+    echo -e "${TITLE}────────── 上网设置 ──────────${NC}"
     echo ""
     echo -e "${YELLOW}-- 当前上网模式 --${NC}"
     if [ "$(sysctl -n net.ipv6.conf.all.disable_ipv6 2>/dev/null)" = "1" ]; then
@@ -1078,7 +1199,7 @@ sys_netmode() {
 sys_tools() {
   while true; do
     clear
-    echo -e "${CYAN}────────── 系统工具 ──────────${NC}"
+    echo -e "${TITLE}────────── 系统工具 ──────────${NC}"
     echo ""
     echo "  ──────────────────────────────────────"
     echo -e "   ${GREEN}1${NC}) 软件源管理     ${GREEN}11${NC}) Easy 脚本管理"
@@ -1107,7 +1228,7 @@ sys_tools() {
       8) sys_passwd ;;
       9) sys_schedule_reboot ;;
       10) sys_reboot ;;
-      11) sys_script_mgmt ;;
+      11) sys_script_mgmt; [ "$GOTO_MAIN" = "1" ] && return ;;
       0) return ;;
       *) ;;
     esac
@@ -1137,7 +1258,7 @@ port_check() {
 # ---------- 5. 端口状态 ----------
 sys_ports() {
   clear
-  echo -e "${CYAN}────────── 端口状态 ──────────${NC}"
+  echo -e "${TITLE}────────── 端口状态 ──────────${NC}"
   echo -e "${YELLOW}-- 当前监听的端口 --${NC}"
   if command -v ss >/dev/null 2>&1; then
     ss -tunlp | awk '
@@ -1290,7 +1411,7 @@ bbr_uninstall() {
 sys_bbr() {
   while true; do
     clear
-    echo -e "${CYAN}────────── BBR 加速 ──────────${NC}"
+    echo -e "${TITLE}────────── BBR 加速 ──────────${NC}"
     bbr_status
     echo ""
     echo "  ──────────────────────────────────────"
@@ -1361,7 +1482,7 @@ sys_ufw() {
 
   while true; do
     clear
-    echo -e "${CYAN}────────── 防火墙管理 ──────────${NC}"
+    echo -e "${TITLE}────────── 防火墙管理 ──────────${NC}"
     echo ""
     echo -e "${YELLOW}-- 当前防火墙状态 --${NC}"
     if ufw status | grep -q "Status: active"; then
@@ -1390,7 +1511,7 @@ sys_ufw() {
     echo -e "   ${GREEN}4${NC}) 取消放行 V6 端口"
     echo -e "   ${GREEN}5${NC}) 开启防火墙"
     echo -e "   ${GREEN}6${NC}) 关闭防火墙"
-    echo -e "   ${GREEN}7${NC}) 开关 Ping"
+    echo -e "   ${GREEN}7${NC}) 开 / 关 Ping"
     echo -e "   ${GREEN}8${NC}) 重置默认策略"
     echo -e "   ${GREEN}9${NC}) 卸载防火墙"
     echo -e "   ${GREEN}0${NC}) 返回主菜单"
@@ -1589,7 +1710,7 @@ sys_proxy() {
   local env_file="/tmp/proxy.sh"
   while true; do
     clear
-    echo -e "${CYAN}────────── SOCKS5 ──────────${NC}"
+    echo -e "${TITLE}────────── SOCKS5 ──────────${NC}"
     echo ""
     # 显示当前状态
     unset ALL_PROXY all_proxy http_proxy https_proxy HTTP_PROXY HTTPS_PROXY
@@ -1756,7 +1877,7 @@ sys_notes() {
   # 首次进入：文件不存在时询问是否创建
   if [ ! -f "$NOTES_FILE" ]; then
     clear
-    echo -e "${CYAN}────────── 记事本 ──────────${NC}"
+    echo -e "${TITLE}────────── 记事本 ──────────${NC}"
     echo ""
     echo -e "  笔记文件不存在，将创建在: ${GREEN}${NOTES_FILE}${NC}"
     echo ""
@@ -1772,7 +1893,7 @@ AD
   fi
   while true; do
     clear
-    echo -e "${CYAN}────────── 记事本 ──────────${NC}"
+    echo -e "${TITLE}────────── 记事本 ──────────${NC}"
     echo -e "  文件位置: ${GREEN}${NOTES_FILE}${NC}"
     echo ""
     # 显示现有笔记
@@ -1847,7 +1968,7 @@ AD
 # ---------- 2. 系统日志 ----------
 sys_logs() {
   clear
-  echo -e "${CYAN}────────── 系统日志 (最近20条) ──────────${NC}"
+  echo -e "${TITLE}────────── 系统日志 (最近20条) ──────────${NC}"
   journalctl -n 20 --no-pager 2>/dev/null | tail -20
   echo ""
   read -p "  按回车返回菜单..."
@@ -1859,7 +1980,7 @@ sys_files() {
   local -a items
   while true; do
     clear
-    echo -e "${CYAN}────────── 文件管理 ──────────${NC}"
+    echo -e "${TITLE}────────── 文件管理 ──────────${NC}"
     echo -e "  当前目录: ${GREEN}${cur}${NC}"
     echo ""
     items=()
@@ -1869,7 +1990,7 @@ sys_files() {
       f="${f%/}"
       i=$((i+1))
       items[$i]="$f"
-      echo -e "   ${GREEN}$i${NC}) ${BLUE}[文件夹]${NC} $f/"
+      echo -e "   ${GREEN}$i${NC}) ${TITLE}[文件夹]${NC} $f/"
     done < <(ls -Ap1 "$cur" 2>/dev/null | grep '/$' | sort)
     while IFS= read -r f; do
       [ -z "$f" ] && continue
@@ -1923,7 +2044,7 @@ sys_files() {
             # 文件操作
             while true; do
               clear
-              echo -e "${CYAN}── 文件: $f ──${NC}"
+              echo -e "${TITLE}── 文件: $f ──${NC}"
               echo -e "  路径: $fpath"
               echo "  ──────────────────────────────────────"
               echo -e "   ${GREEN}1${NC}) 查看内容"
@@ -1942,7 +2063,7 @@ sys_files() {
               case "$fop" in
                 1)
                   clear
-                  echo -e "${CYAN}── $f (前100行) ──${NC}"
+                  echo -e "${TITLE}── $f (前100行) ──${NC}"
                   head -100 "$fpath" 2>/dev/null || echo -e "${RED}  无法读取 (二进制文件?)${NC}"
                   echo ""
                   read -p "  按回车继续..."
@@ -2162,95 +2283,6 @@ sys_files() {
   done
 }
 
-# ---------- 8. 软件管理 ----------
-sys_packages() {
-  local -a pkgs
-  local filter=""
-  while true; do
-    clear
-    echo -e "${CYAN}────────── 软件管理 ──────────${NC}"
-    [ -n "$filter" ] && echo -e "  搜索: ${YELLOW}$filter${NC}"
-    echo ""
-    pkgs=()
-    local i=0
-    while IFS= read -r name ver; do
-      [ -z "$name" ] && continue
-      i=$((i+1))
-      pkgs[$i]="$name $ver"
-      echo -e "   ${GREEN}$i${NC}) $name  ${YELLOW}$ver${NC}"
-    done < <(dpkg-query -W -f='${Package} ${Version}\n' 2>/dev/null | grep -i "$filter" | sort)
-    echo ""
-    echo "  ──────────────────────────────────────"
-    echo -e "   ${GREEN}s${NC}) 搜索包名"
-    echo -e "   ${GREEN}0${NC}) 返回"
-    echo "  ──────────────────────────────────────"
-    echo ""
-    read -p "  输入序号查看详情: " sel
-    case "$sel" in
-      0)
-        if [ -n "$filter" ]; then
-          filter=""
-        else
-          return
-        fi
-        ;;
-      s)
-        read -p "  输入搜索关键词: " filter
-        ;;
-      *)
-        if echo "$sel" | grep -qE '^[0-9]+$' && [ "$sel" -ge 1 ] && [ "$sel" -le "$i" ]; then
-          local pkgname=$(echo "${pkgs[$sel]}" | awk '{print $1}')
-          while true; do
-            clear
-            echo -e "${CYAN}── 包详情: $pkgname ──${NC}"
-            echo ""
-            dpkg-query -s "$pkgname" 2>/dev/null | grep -E '^(Package|Version|Installed-Size|Description):' | head -10
-            echo ""
-            echo -e "  安装的文件数: $(dpkg-query -L "$pkgname" 2>/dev/null | wc -l)"
-            echo ""
-            echo "  ──────────────────────────────────────"
-            echo -e "   ${GREEN}1${NC}) 卸载此包"
-            echo -e "   ${GREEN}0${NC}) 返回列表"
-            echo "  ──────────────────────────────────────"
-            echo ""
-            read -p "  请输入选项: " pop
-            case "$pop" in
-              1)
-                # 系统关键包禁止卸载
-                case "$pkgname" in
-                  apt|bash|libc6|systemd|dpkg|debian-archive-keyring|debian-base|debianutils|initscripts|libapt-pkg|libgcc|libstdc|login|mount|passwd|perl-base|rootskel|sysvinit|tar|udev|util-linux|x-ui|xray|3x-ui)
-                    echo -e "${RED}[!] 警告：这是系统/面板关键包，卸载可能导致系统崩溃！${NC}"
-                    echo -e "${YELLOW}    输入 yes 确认继续，其他任意键取消:${NC}"
-                    read -p "  输入 yes: " double
-                    if [ "$double" = "yes" ]; then
-                      apt remove -y "$pkgname" >/dev/null 2>&1 && echo -e "${GREEN}  已卸载${NC}" || echo -e "${RED}  卸载失败${NC}"
-                    else
-                      echo "  已取消"
-                    fi
-                    read -p "  按回车继续..."
-                    break
-                    ;;
-                  *)
-                    if confirm "确认卸载 $pkgname ?"; then
-                      apt remove -y "$pkgname" >/dev/null 2>&1 && echo -e "${GREEN}  已卸载${NC}" || echo -e "${RED}  卸载失败${NC}"
-                    else
-                      echo "  已取消"
-                    fi
-                    read -p "  按回车继续..."
-                    break
-                    ;;
-                esac
-                ;;
-              0) break ;;
-              *) ;;
-            esac
-          done
-        fi
-        ;;
-    esac
-  done
-}
-
 # 流媒体检测辅助: $1=平台名 $2=URL $3=CN重定向检查(1/0) $4=地区不支持关键词(可空)
 # 检测完实时输出单行结果（配合 media_print），不累积
 # 单次请求 + 收紧超时，避免拖慢小机型；仅需状态码的平台零内容下载
@@ -2349,7 +2381,7 @@ get_pub_ip6() {
 # 出口 IP 检测 (多接口轮询，任一成功即返回，避免单接口失效)
 sys_net() {
   clear
-  echo -e "${CYAN}────────── 网络状态 ──────────${NC}"
+  echo -e "${TITLE}────────── 网络状态 ──────────${NC}"
   echo ""
   echo -e "${YELLOW}-- IP 信息 --${NC}"
   echo -en "${YELLOW}  正在加载...${NC}"
@@ -2691,7 +2723,7 @@ ping_intl6() {
 # 整合 IPv4 Ping：依次测国内、国际，各测 10 次实时显示
 ping_both4() {
   clear
-  echo -e "${CYAN}────────── Ping 测试 ──────────${NC}"
+  echo -e "${TITLE}────────── Ping 测试 ──────────${NC}"
   ping_cn
   ping_intl
 }
@@ -2699,7 +2731,7 @@ ping_both4() {
 # 整合 IPv6 Ping：依次测国内、国际，各测 10 次实时显示
 ping_both6() {
   clear
-  echo -e "${CYAN}────────── Ping 测试 ──────────${NC}"
+  echo -e "${TITLE}────────── Ping 测试 ──────────${NC}"
   ping_cn6
   ping_intl6
 }
@@ -2707,7 +2739,7 @@ ping_both6() {
 # 整合 IPv4 丢包测试：依次测国内、国际，各测 100 次实时显示丢包率
 loss_both4() {
   clear
-  echo -e "${CYAN}────────── Ping 测试 ──────────${NC}"
+  echo -e "${TITLE}────────── Ping 测试 ──────────${NC}"
   ping_cn_loss
   ping_intl_loss
 }
@@ -2715,7 +2747,7 @@ loss_both4() {
 # 整合 IPv6 丢包测试：依次测国内、国际，各测 100 次实时显示丢包率
 loss_both6() {
   clear
-  echo -e "${CYAN}────────── Ping 测试 ──────────${NC}"
+  echo -e "${TITLE}────────── Ping 测试 ──────────${NC}"
   ping_cn_loss6
   ping_intl_loss6
 }
@@ -2723,7 +2755,7 @@ loss_both6() {
 # 自定义 Ping：输入 IP 或域名，ping 10 次取平均；输入 IPv6 地址自动识别
 ping_custom() {
   clear
-  echo -e "${CYAN}────────── Ping 测试 ──────────${NC}"
+  echo -e "${TITLE}────────── Ping 测试 ──────────${NC}"
   echo -e "${YELLOW}-- 自定义 Ping --${NC}"
   local target out avg
   read -p "  请输入 IP 或域名: " target
@@ -2750,7 +2782,7 @@ ping_custom() {
 # 自定义丢包测试：输入 IP 或域名，ping 100 次（1% 粒度）；输入 IPv6 地址自动识别
 ping_custom_loss() {
   clear
-  echo -e "${CYAN}────────── Ping 测试 ──────────${NC}"
+  echo -e "${TITLE}────────── Ping 测试 ──────────${NC}"
   echo -e "${YELLOW}-- 自定义丢包测试 --${NC}"
   local target out loss lpct
   read -p "  请输入 IP 或域名: " target
@@ -2806,7 +2838,7 @@ glob_continent_name() {
 glob_test_country() {
   local ip="$1" cc="$2" label="$3" resp mid res raw avg loss_pct city w i ch code
   clear
-  echo -e "${CYAN}────────── Globalping ──────────${NC}"
+  echo -e "${TITLE}────────── Globalping ──────────${NC}"
   echo -e "  测试目标: ${GREEN}$ip${NC} (${label:-IPv4})"
   echo -e "${YELLOW}-- 正在从 $(glob_country_name "$cc") 节点检测 --${NC}"
   resp=$(curl -s --noproxy '*' --connect-timeout 10 --max-time 20 -X POST "https://api.globalping.io/v1/measurements" -H "Content-Type: application/json" -d "{\"type\":\"ping\",\"target\":\"$ip\",\"limit\":5,\"locations\":[{\"country\":\"$cc\"}]}")
@@ -2873,7 +2905,7 @@ glob_country_menu() {
   done < <(printf '%s\n' "$data" | grep " $cont:")
   while true; do
     clear
-    echo -e "${CYAN}────────── Globalping ──────────${NC}"
+    echo -e "${TITLE}────────── Globalping ──────────${NC}"
     [ -n "$ip" ] && echo -e "  本机 IPv4: ${GREEN}$ip${NC}"
     [ -n "$ip6" ] && echo -e "  本机 IPv6: ${GREEN}$ip6${NC}"
     echo ""
@@ -2917,7 +2949,7 @@ glob_country_menu() {
 ping_global() {
   local ip ip6 data conts c nc idx csel
   clear
-  echo -e "${CYAN}────────── Globalping ──────────${NC}"
+  echo -e "${TITLE}────────── Globalping ──────────${NC}"
   echo -en "${YELLOW}  正在加载...${NC}"
   get_pub_ip
   ip="$PUB_IP"
@@ -2956,7 +2988,7 @@ ping_global() {
   done
   while true; do
     clear
-    echo -e "${CYAN}────────── Globalping ──────────${NC}"
+    echo -e "${TITLE}────────── Globalping ──────────${NC}"
     [ -n "$ip" ] && echo -e "  本机 IPv4: ${GREEN}$ip${NC}"
     [ -n "$ip6" ] && echo -e "  本机 IPv6: ${GREEN}$ip6${NC}"
     echo ""
@@ -2973,7 +3005,7 @@ ping_global() {
     read -p "  请输入选项: " csel
     if [ "$csel" = "0" ]; then
       clear
-      echo -e "${CYAN}────────── Ping 测试 ──────────${NC}"
+      echo -e "${TITLE}────────── Ping 测试 ──────────${NC}"
       echo ""
       return
     fi
@@ -2989,9 +3021,495 @@ ping_global() {
 # Ping 测试入口
 sys_ping() {
   clear
-  echo -e "${CYAN}────────── Ping 测试 ──────────${NC}"
+  echo -e "${TITLE}────────── Ping 测试 ──────────${NC}"
   echo ""
   ping_action
+}
+
+# ---------- APPStore ----------
+# 分类中文名映射（未知分类显示原名）
+app_sec_name() {
+  case "$1" in
+    admin) echo "系统管理" ;; net) echo "网络工具" ;; web) echo "网站服务器" ;;
+    database) echo "数据库" ;; games) echo "游戏" ;; graphics) echo "图形图像" ;;
+    utils) echo "日常工具" ;; devel) echo "开发库" ;; mail) echo "邮件服务" ;;
+    sound) echo "声音" ;; text) echo "文本处理" ;; python) echo "Python" ;;
+    perl) echo "Perl" ;; ruby) echo "Ruby" ;; php) echo "PHP" ;;
+    java) echo "Java" ;; science) echo "科学计算" ;; editors) echo "编辑器" ;;
+    shells) echo "Shell" ;; x11) echo "X11 图形" ;; video) echo "视频" ;;
+    libs) echo "运行库" ;; libdevel) echo "开发库" ;; doc) echo "文档" ;;
+    misc) echo "杂项" ;; oldlibs) echo "旧库" ;; comm) echo "通讯" ;;
+    gnome) echo "GNOME" ;; kde) echo "KDE" ;; lisp) echo "Lisp" ;;
+    haskell) echo "Haskell" ;; ocaml) echo "OCaml" ;; math) echo "数学" ;;
+    *) echo "$1" ;;
+  esac
+}
+
+# 检测软件源缓存是否存在
+app_cache_ready() {
+  ls /var/lib/apt/lists/*Packages* >/dev/null 2>&1
+}
+
+# 刷新软件源（带确认）
+app_update() {
+  if confirm "确认刷新软件源 (apt update)?"; then
+    echo -e "${YELLOW}  正在刷新软件源 (apt update)...${NC}"
+    if apt update; then
+      echo -e "${GREEN}  软件源已刷新${NC}"
+      APP_SECS_CACHE=""   # 刷新后分类缓存失效，下次进入 APPStore 重新统计
+    else
+      echo -e "${RED}  刷新失败，请检查网络或软件源配置${NC}"
+    fi
+  fi
+}
+
+# 统计软件分类（按包数量降序）
+app_sections() {
+  apt-cache dumpavail 2>/dev/null | grep '^Section: ' | awk '{print $2}' | sort | uniq -c | sort -rn
+}
+
+# 某分类下的包名列表
+app_cat_pkgs() {
+  apt-cache dumpavail 2>/dev/null | awk -v s="Section: $1" '
+    /^Package: / { pkg=$2 }
+    /^Section: / && $0 == s { print pkg }
+  '
+}
+
+# 包是否已安装
+app_installed() {
+  dpkg -s "$1" 2>/dev/null | grep -q '^Status: install ok installed'
+}
+
+# 包详情 + 确认安装
+app_pkg_install() {
+  local pkg="$1" show v d sz
+  clear
+  echo -e "${TITLE}────────── 软件包详情 ──────────${NC}"
+  show=$(apt-cache show "$pkg" 2>/dev/null)
+  if [ -z "$show" ]; then
+    echo -e "${RED}  未找到软件包: $pkg${NC}"
+    read -p "  按回车返回..."
+    return
+  fi
+  v=$(echo "$show" | grep -m1 '^Version:' | cut -d' ' -f2)
+  sz=$(echo "$show" | grep -m1 '^Installed-Size:' | cut -d' ' -f2)
+  d=$(echo "$show" | grep -m1 '^Depends:' | sed 's/^Depends: //')
+  echo -e "  包名:   ${GREEN}$pkg${NC}"
+  [ -n "$v" ] && echo -e "  版本:   $v"
+  [ -n "$sz" ] && echo -e "  大小:   ${sz}KB"
+  [ -n "$d" ] && echo -e "  依赖:   $d"
+  echo -e "  描述:   $(echo "$show" | grep -m1 '^Description' | sed 's/^Description[^:]*: //')"
+  echo ""
+  if app_installed "$pkg"; then
+    echo -e "  状态: ${GREEN}已安装${NC}"
+    read -p "  按回车返回..."
+    return
+  fi
+  if confirm "确认安装 $pkg?"; then
+    echo -e "${YELLOW}  正在安装 $pkg ...${NC}"
+    apt install -y "$pkg"
+    echo ""
+    if app_installed "$pkg"; then
+      echo -e "${GREEN}  $pkg 安装完成${NC}"
+    else
+      echo -e "${RED}  安装未完成，请检查上方输出${NC}"
+    fi
+    read -p "  按回车继续..."
+  fi
+}
+
+# 分类内包列表（分页）
+app_cat_menu() {
+  local sec="$1" pkgs=() total pages page=1 i start end opt
+  pkgs=($(app_cat_pkgs "$sec"))
+  total=${#pkgs[@]}
+  if [ "$total" -eq 0 ]; then
+    echo -e "${RED}  该分类下暂无软件包${NC}"
+    read -p "  按回车返回..."
+    return
+  fi
+  pages=$(( (total+APP_PAGE-1)/APP_PAGE ))
+  while true; do
+    clear
+    echo -e "${TITLE}────────── APPStore ──────────${NC}"
+    echo -e "${YELLOW}-- 分类: $(app_sec_name "$sec") (${sec}) · 共 ${total} 个包 · 第 ${page}/${pages} 页 --${NC}"
+    echo "  ──────────────────────────────────────"
+    start=$(( (page-1)*APP_PAGE ))
+    end=$(( start+APP_PAGE-1 ))
+    [ "$end" -ge "$total" ] && end=$((total-1))
+    for i in $(seq $start $end); do
+      if app_installed "${pkgs[$i]}"; then
+        printf "   ${GREEN}%d${NC}) %-28s ${YELLOW}[已装]${NC}\n" "$((i-start+1))" "${pkgs[$i]}"
+      else
+        printf "   ${GREEN}%d${NC}) %s\n" "$((i-start+1))" "${pkgs[$i]}"
+      fi
+    done
+    echo "  ──────────────────────────────────────"
+    echo -e "   ${GREEN}a${NC}) 上一页   ${GREEN}b${NC}) 下一页   ${GREEN}0${NC}) 返回分类"
+    echo ""
+    read -p "  请输入序号查看详情: " opt
+    if [ "$opt" = "0" ]; then return; fi
+    if [ "$opt" = "a" ] && [ "$page" -gt 1 ]; then page=$((page-1)); continue; fi
+    if [ "$opt" = "b" ] && [ "$page" -lt "$pages" ]; then page=$((page+1)); continue; fi
+    if [ "$opt" -ge 1 ] 2>/dev/null && [ "$opt" -le $((end-start+1)) ]; then
+      app_pkg_install "${pkgs[$((start+opt-1))]}"
+    fi
+  done
+}
+
+# 关键词搜索
+app_search() {
+  local kw results pkgs=() descs=() line pkg desc i total pages page start end opt j
+  while true; do
+    clear
+    echo -e "${TITLE}────────── APPStore 搜索 ──────────${NC}"
+    read -p "  输入关键词搜索 (0 返回): " kw
+    [ "$kw" = "0" ] && return
+    [ -z "$kw" ] && continue
+    echo -e "${YELLOW}  正在搜索: $kw ...${NC}"
+    results=$(apt-cache search "$kw" 2>/dev/null)
+    if [ -z "$results" ]; then
+      echo -e "${RED}  未找到相关软件包${NC}"
+      read -p "  按回车继续..."
+      continue
+    fi
+    # 排序：包名精确匹配最前，包名前缀匹配其次，包名包含关键词再次，其余（仅描述匹配）最后
+    results=$(echo "$results" | awk -v kw="$kw" '{ r=3; if ($1==kw) r=0; else if (index($1,kw)==1) r=1; else if (index($1,kw)>0) r=2; print r" "$0 }' | sort | cut -d' ' -f2-)
+    i=0
+    while IFS= read -r line; do
+      pkgs[$i]=${line%% -*}
+      descs[$i]=${line#*- }
+      i=$((i+1))
+    done <<EOF
+$results
+EOF
+    total=$i
+    pages=$(( (total+APP_PAGE-1)/APP_PAGE ))
+    page=1
+    while true; do
+      clear
+      echo -e "${TITLE}────────── APPStore 搜索 ──────────${NC}"
+      echo -e "${YELLOW}-- 关键词: $kw · 找到 ${total} 个 · 第 ${page}/${pages} 页 --${NC}"
+      echo "  ──────────────────────────────────────"
+      start=$(( (page-1)*APP_PAGE ))
+      end=$(( start+APP_PAGE-1 ))
+      [ "$end" -ge "$total" ] && end=$((total-1))
+      for j in $(seq $start $end); do
+        pkg=${pkgs[$j]}
+        if app_installed "$pkg"; then
+          printf "   ${GREEN}%d${NC}) %-24s ${YELLOW}[已装]${NC} %s\n" "$((j-start+1))" "$pkg" "${descs[$j]}"
+        else
+          printf "   ${GREEN}%d${NC}) %-24s %s\n" "$((j-start+1))" "$pkg" "${descs[$j]}"
+        fi
+      done
+      echo "  ──────────────────────────────────────"
+      echo -e "   ${GREEN}a${NC}) 上一页   ${GREEN}b${NC}) 下一页   ${GREEN}0${NC}) 返回 APPStore"
+      echo ""
+      read -p "  输入序号查看详情: " opt
+      if [ "$opt" = "0" ]; then return; fi
+      if [ "$opt" = "a" ] && [ "$page" -gt 1 ]; then page=$((page-1)); continue; fi
+      if [ "$opt" = "b" ] && [ "$page" -lt "$pages" ]; then page=$((page+1)); continue; fi
+      if [ "$opt" -ge 1 ] 2>/dev/null && [ "$opt" -le $((end-start+1)) ]; then
+        app_pkg_install "${pkgs[$((start+opt-1))]}"
+      fi
+    done
+  done
+}
+
+# APPStore 入口
+app_store() {
+  local secs=() n opt
+  # 会话级缓存分类统计（避免每次返回主菜单重跑 apt-cache dumpavail，小内存机器友好）
+  if [ -z "$APP_SECS_CACHE" ]; then
+    APP_SECS_CACHE=$(app_sections 2>/dev/null | awk '{print $2}')
+  fi
+  while true; do
+    if ! app_cache_ready; then
+      clear
+      echo -e "${TITLE}────────── APPStore ──────────${NC}"
+      echo -e "${YELLOW}  软件源缓存为空，需要先刷新软件源${NC}"
+      echo ""
+      app_update
+      if ! app_cache_ready; then
+        echo -e "${RED}  刷新未完成，无法使用商店${NC}"
+        read -p "  按回车返回..."
+        return
+      fi
+      # 刷新后缓存失效，重新统计分类
+      APP_SECS_CACHE=$(app_sections 2>/dev/null | awk '{print $2}')
+    fi
+    clear
+    echo -e "${TITLE}────────── APPStore ──────────${NC}"
+    echo -e "${YELLOW}-- 软件分类 --${NC}"
+    echo "  ──────────────────────────────────────"
+    secs=($APP_SECS_CACHE)
+    n=${#secs[@]}
+    [ "$n" -gt 12 ] && n=12
+    if [ "$n" -eq 0 ]; then
+      echo -e "${RED}  未获取到软件分类，请先刷新软件源${NC}"
+      echo ""
+      read -p "  按回车返回主菜单..."
+      return
+    fi
+    for i in $(seq 0 $((n-1))); do
+      printf "   ${GREEN}%d${NC}) %s (%s)\n" "$((i+1))" "$(app_sec_name "${secs[$i]}")" "${secs[$i]}"
+    done
+    echo "  ──────────────────────────────────────"
+    printf "  ${GREEN}%d${NC}) 搜索 APP\n" "$((n+1))"
+    printf "  ${GREEN}%d${NC}) 查看更新\n" "$((n+2))"
+    printf "  ${GREEN}%d${NC}) 软件管理\n" "$((n+3))"
+    printf "  ${GREEN}%d${NC}) 设置显示行数 (当前 %d)\n" "$((n+4))" "$APP_PAGE"
+    echo -e "   ${GREEN}0${NC}) 返回主菜单"
+    echo "  ──────────────────────────────────────"
+    echo ""
+    read -p "  请输入选项: " opt
+    if [ "$opt" = "0" ]; then return; fi
+    if [ "$opt" -ge 1 ] 2>/dev/null && [ "$opt" -le "$n" ]; then
+      app_cat_menu "${secs[$((opt-1))]}"
+    elif [ "$opt" = "$((n+1))" ]; then
+      app_search
+    elif [ "$opt" = "$((n+2))" ]; then
+      app_update_list
+    elif [ "$opt" = "$((n+3))" ]; then
+      app_pkgs_manage
+    elif [ "$opt" = "$((n+4))" ]; then
+      app_page_set
+    fi
+  done
+}
+
+# APPStore 查看更新：列出可升级包，单个选择升级，支持搜索
+app_update_list() {
+  local pkgs=() oldv=() newv=() line pkg ov nv i total pages page start end opt kw idx k m so
+  while true; do
+    i=0
+    while IFS= read -r line; do
+      [ -z "$line" ] && continue
+      pkg=$(echo "$line" | awk -F'/' '{print $1}')
+      nv=$(echo "$line" | awk '{print $2}')
+      ov=$(echo "$line" | sed -n 's/.*upgradable from: \([^]]*\)].*/\1/p')
+      pkgs[$i]=$pkg; newv[$i]=$nv; oldv[$i]=$ov
+      i=$((i+1))
+    done <<EOF
+$(apt list --upgradable 2>/dev/null | tail -n +2)
+EOF
+    total=$i
+    if [ "$total" -eq 0 ]; then
+      clear
+      echo -e "${TITLE}────────── APPStore 更新 ──────────${NC}"
+      echo -e "${GREEN}  当前没有可升级的软件包${NC}"
+      read -p "  按回车返回..."
+      return
+    fi
+    pages=$(( (total+APP_PAGE-1)/APP_PAGE ))
+    page=1
+    while true; do
+      clear
+      echo -e "${TITLE}────────── APPStore 更新 ──────────${NC}"
+      echo -e "${YELLOW}-- 可升级软件包 (${total} 个) · 第 ${page}/${pages} 页 --${NC}"
+      echo "  ──────────────────────────────────────"
+      start=$(( (page-1)*APP_PAGE ))
+      end=$(( start+APP_PAGE-1 ))
+      [ "$end" -ge "$total" ] && end=$((total-1))
+      for j in $(seq $start $end); do
+        printf "   ${GREEN}%d${NC}) %-22s %s → %s\n" "$((j-start+1))" "${pkgs[$j]}" "${oldv[$j]}" "${newv[$j]}"
+      done
+      echo "  ──────────────────────────────────────"
+      echo -e "   ${GREEN}a${NC}) 上一页   ${GREEN}b${NC}) 下一页   ${GREEN}s${NC}) 搜索   ${GREEN}0${NC}) 返回 APPStore"
+      echo ""
+      read -p "  输入序号选择升级: " opt
+      if [ "$opt" = "0" ]; then return; fi
+      if [ "$opt" = "a" ] && [ "$page" -gt 1 ]; then page=$((page-1)); continue; fi
+      if [ "$opt" = "b" ] && [ "$page" -lt "$pages" ]; then page=$((page+1)); continue; fi
+      if [ "$opt" = "s" ]; then
+        read -p "  输入关键词过滤 (0 返回): " kw
+        [ "$kw" = "0" ] && continue
+        idx=()
+        m=0
+        for k in $(seq 0 $((total-1))); do
+          if echo "${pkgs[$k]}" | grep -q "$kw"; then
+            idx[$m]=$k
+            m=$((m+1))
+          fi
+        done
+        if [ "$m" -eq 0 ]; then
+          echo -e "${RED}  没有匹配的软件包${NC}"
+          read -p "  按回车继续..."
+          continue
+        fi
+        clear
+        echo -e "${TITLE}────────── APPStore 更新搜索 ──────────${NC}"
+        echo -e "${YELLOW}-- 匹配 ${kw} · ${m} 个 --${NC}"
+        for k in $(seq 0 $((m-1))); do
+          printf "   ${GREEN}%d${NC}) %-22s %s → %s\n" "$((k+1))" "${pkgs[${idx[$k]}]}" "${oldv[${idx[$k]}]}" "${newv[${idx[$k]}]}"
+        done
+        echo ""
+        read -p "  输入序号升级 (0 返回): " so
+        [ "$so" = "0" ] && continue
+        if [ "$so" -ge 1 ] 2>/dev/null && [ "$so" -le "$m" ]; then
+          pkg=${pkgs[${idx[$((so-1))]}]}
+          if confirm "确认升级 $pkg?"; then
+            echo -e "${YELLOW}  正在升级 $pkg ...${NC}"
+            if apt install -y --only-upgrade "$pkg"; then
+              echo -e "${GREEN}  $pkg 升级完成${NC}"
+            else
+              echo -e "${RED}  $pkg 升级失败，请检查上方错误输出${NC}"
+            fi
+          fi
+          read -p "  按回车继续..."
+          break   # 升级后重拉列表（已升级的包不再显示）
+        fi
+        continue
+      fi
+      if [ "$opt" -ge 1 ] 2>/dev/null && [ "$opt" -le $((end-start+1)) ]; then
+        pkg=${pkgs[$((start+opt-1))]}
+        clear
+        echo -e "${TITLE}────────── APPStore 更新 ──────────${NC}"
+        echo -e "  软件包: ${GREEN}${pkg}${NC}"
+        echo -e "  版本:   ${oldv[$((start+opt-1))]} → ${newv[$((start+opt-1))]}"
+        if confirm "确认升级 $pkg?"; then
+          echo -e "${YELLOW}  正在升级 $pkg ...${NC}"
+          if apt install -y --only-upgrade "$pkg"; then
+            echo -e "${GREEN}  $pkg 升级完成${NC}"
+          else
+            echo -e "${RED}  $pkg 升级失败，请检查上方错误输出${NC}"
+          fi
+        fi
+        read -p "  按回车继续..."
+        break   # 升级后重拉列表（已升级的包不再显示）
+      fi
+    done
+  done
+}
+
+# APPStore 软件管理：已装包查看/搜索/卸载（分页，行数受 APP_PAGE 控制）
+app_pkgs_manage() {
+  local pkgs=() vers=() filter="" i total pages page start end opt j pkgname pop double
+  while true; do
+    pkgs=()
+    vers=()
+    i=0
+    while read -r name ver; do
+      [ -z "$name" ] && continue
+      pkgs[$i]=$name
+      vers[$i]=$ver
+      i=$((i+1))
+    done < <(dpkg-query -W -f='${Package} ${Version}\n' 2>/dev/null | grep -i "$filter" | sort)
+    total=$i
+    if [ "$total" -eq 0 ]; then
+      clear
+      echo -e "${TITLE}────────── 软件管理 ──────────${NC}"
+      if [ -n "$filter" ]; then
+        echo -e "${RED}  没有匹配的软件包${NC}"
+        read -p "  按回车返回..."
+        filter=""
+        continue
+      fi
+      echo -e "${RED}  没有已安装的软件包${NC}"
+      read -p "  按回车返回..."
+      return
+    fi
+    pages=$(( (total+APP_PAGE-1)/APP_PAGE ))
+    page=1
+    while true; do
+      clear
+      echo -e "${TITLE}────────── 软件管理 ──────────${NC}"
+      [ -n "$filter" ] && echo -e "  搜索: ${YELLOW}$filter${NC}"
+      echo -e "${YELLOW}-- 已安装软件包 (${total} 个) · 第 ${page}/${pages} 页 --${NC}"
+      echo "  ──────────────────────────────────────"
+      start=$(( (page-1)*APP_PAGE ))
+      end=$(( start+APP_PAGE-1 ))
+      [ "$end" -ge "$total" ] && end=$((total-1))
+      for j in $(seq $start $end); do
+        printf "   ${GREEN}%d${NC}) %-26s ${YELLOW}%s${NC}\n" "$((j-start+1))" "${pkgs[$j]}" "${vers[$j]}"
+      done
+      echo "  ──────────────────────────────────────"
+      echo -e "   ${GREEN}a${NC}) 上一页   ${GREEN}b${NC}) 下一页   ${GREEN}s${NC}) 搜索   ${GREEN}0${NC}) 返回 APPStore"
+      echo ""
+      read -p "  输入序号查看详情: " opt
+      if [ "$opt" = "0" ]; then return; fi
+      if [ "$opt" = "a" ] && [ "$page" -gt 1 ]; then page=$((page-1)); continue; fi
+      if [ "$opt" = "b" ] && [ "$page" -lt "$pages" ]; then page=$((page+1)); continue; fi
+      if [ "$opt" = "s" ]; then
+        read -p "  输入搜索关键词 (0 返回): " filter
+        [ "$filter" = "0" ] && filter=""
+        break
+      fi
+      if [ "$opt" -ge 1 ] 2>/dev/null && [ "$opt" -le $((end-start+1)) ]; then
+        pkgname=${pkgs[$((start+opt-1))]}
+        while true; do
+          clear
+          echo -e "${TITLE}────────── 软件管理 ──────────${NC}"
+          echo -e "${YELLOW}-- 包详情: $pkgname --${NC}"
+          echo ""
+          dpkg-query -s "$pkgname" 2>/dev/null | grep -E '^(Package|Version|Installed-Size|Description):' | head -10
+          echo ""
+          echo -e "  安装的文件数: $(dpkg-query -L "$pkgname" 2>/dev/null | wc -l)"
+          echo ""
+          echo "  ──────────────────────────────────────"
+          echo -e "   ${GREEN}1${NC}) 卸载此包"
+          echo -e "   ${GREEN}0${NC}) 返回列表"
+          echo "  ──────────────────────────────────────"
+          echo ""
+          read -p "  请输入选项: " pop
+          case "$pop" in
+            1)
+              case "$pkgname" in
+                apt|bash|libc6|systemd|dpkg|debian-archive-keyring|debian-base|debianutils|initscripts|libapt-pkg|libgcc|libstdc|login|mount|passwd|perl-base|rootskel|sysvinit|tar|udev|util-linux|x-ui|xray|3x-ui)
+                  echo -e "${RED}[!] 警告：这是系统/面板关键包，卸载可能导致系统崩溃！${NC}"
+                  echo -e "${YELLOW}    输入 yes 确认继续，其他任意键取消:${NC}"
+                  read -p "  输入 yes: " double
+                  if [ "$double" = "yes" ]; then
+                    apt remove -y "$pkgname" >/dev/null 2>&1 && echo -e "${GREEN}  已卸载${NC}" || echo -e "${RED}  卸载失败${NC}"
+                  else
+                    echo "  已取消"
+                  fi
+                  read -p "  按回车继续..."
+                  break 2   # 卸载后重拉列表
+                  ;;
+                *)
+                  if confirm "确认卸载 $pkgname ?"; then
+                    apt remove -y "$pkgname" >/dev/null 2>&1 && echo -e "${GREEN}  已卸载${NC}" || echo -e "${RED}  卸载失败${NC}"
+                  else
+                    echo "  已取消"
+                  fi
+                  read -p "  按回车继续..."
+                  break 2   # 卸载后重拉列表
+                  ;;
+              esac
+              ;;
+            0) break ;;
+            *) ;;
+          esac
+        done
+      fi
+    done
+  done
+}
+
+# APPStore 每页显示行数设置（持久化到脚本自身）
+app_page_set() {
+  local new
+  clear
+  echo -e "${TITLE}────────── APPStore 设置 ──────────${NC}"
+  echo -e "  当前每页显示: ${GREEN}${APP_PAGE}${NC} 行"
+  echo ""
+  read -p "  输入每页显示行数 (5-30, 0 返回): " new
+  [ "$new" = "0" ] && return
+  if [ -n "$new" ] && [ "$new" -ge 5 ] 2>/dev/null && [ "$new" -le 30 ] 2>/dev/null; then
+    if confirm "确认将每页显示改为 ${new} 行?"; then
+      if sed -i "s/^APP_PAGE=[0-9]*/APP_PAGE=$new/" "$SCRIPT_PATH" 2>/dev/null; then
+        APP_PAGE=$new
+        echo -e "${GREEN}  已设置，每页显示 ${new} 行${NC}"
+      else
+        echo -e "${RED}  写入失败，请检查脚本权限${NC}"
+      fi
+    fi
+  else
+    echo -e "${RED}  请输入 5-30 之间的数字${NC}"
+  fi
+  read -p "  按回车返回..."
 }
 
 # ---------- 主循环 ----------
@@ -3002,11 +3520,11 @@ while true; do
     2) sys_net ;;
     3) sys_logs ;;
     4) sys_clean ;;
-    5) sys_tools ;;
+    5) sys_tools; [ "$GOTO_MAIN" = "1" ] && { GOTO_MAIN=""; continue; } ;;
     6) sys_ports ;;
     7) sys_ufw ;;
     8) sys_files ;;
-    9) sys_packages ;;
+    9) app_store ;;
     10) sys_bbr ;;
     11) sys_proxy ;;
     12) sys_ping ;;
