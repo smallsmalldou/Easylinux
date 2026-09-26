@@ -1165,7 +1165,7 @@ sys_netmode() {
     read -p "  请输入选项: " opt
     case "$opt" in
       1)
-        if confirm "确认切换为单 IPv4 上网? (将禁用 IPv6，SSH 走 IPv4 不受影响)"; then
+        if confirm "确认切换为单 IPv4 上网?"; then
           if printf 'net.ipv6.conf.all.disable_ipv6 = 1\nnet.ipv6.conf.default.disable_ipv6 = 1\n' > /etc/sysctl.d/99-ipv6.conf 2>/dev/null; then
             sysctl -p /etc/sysctl.d/99-ipv6.conf >/dev/null 2>&1
             echo -e "${GREEN}  已切换为单 IPv4 上网 (重启后保持)${NC}"
@@ -1178,10 +1178,17 @@ sys_netmode() {
         read -p "  按回车继续..."
         ;;
       2)
-        if confirm "确认切换为 IPv4 + IPv6 双栈上网? (将重新启用 IPv6)"; then
+        if confirm "确认切换为 IPv4 + IPv6 双栈上网?"; then
           if printf 'net.ipv6.conf.all.disable_ipv6 = 0\nnet.ipv6.conf.default.disable_ipv6 = 0\n' > /etc/sysctl.d/99-ipv6.conf 2>/dev/null; then
             sysctl -p /etc/sysctl.d/99-ipv6.conf >/dev/null 2>&1
-            echo -e "${GREEN}  已切换为 IPv4 + IPv6 双栈上网 (重启后保持)${NC}"
+            # disable_ipv6=0 后已存在的接口不会自动重新配置 IPv6 地址，
+            # 需逐接口 down/up 触发地址重新配置，IPv4 数秒后自动恢复
+            for iface in $(ls /sys/class/net 2>/dev/null | grep -v '^lo$'); do
+              sysctl -w "net.ipv6.conf.${iface}.disable_ipv6=0" >/dev/null 2>&1
+              ip link set "$iface" down 2>/dev/null
+              ip link set "$iface" up 2>/dev/null
+            done
+            echo -e "${GREEN}  已切换为 IPv4 + IPv6 双栈上网 (已立即生效)${NC}"
           else
             echo -e "${RED}  写入失败 (权限不足或磁盘只读)，未生效${NC}"
           fi
